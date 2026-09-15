@@ -3,6 +3,7 @@ import Button from '@/components/ui/Button';
 import FaqAccordion from '@/components/site/FaqAccordion';
 import JsonLd from '@/components/site/JsonLd';
 import { t as pick } from '@/lib/constants';
+import { answerFor } from '@/lib/faq';
 
 /**
  * Five questions on the homepage (plan 4.3 §9), reusing the existing
@@ -32,7 +33,9 @@ export default async function FaqSection({ faqs = [] }) {
     mainEntity: items.map((f) => ({
       '@type': 'Question',
       name: pick(f.question, locale),
-      acceptedAnswer: { '@type': 'Answer', text: pick(f.answer, locale) },
+      /* answerFor(), the function FaqAccordion renders with. pick(f.answer) fell
+         back to French and indexed the French long answer on every homepage. */
+      acceptedAnswer: { '@type': 'Answer', text: answerFor(f, locale) },
     })),
   };
 

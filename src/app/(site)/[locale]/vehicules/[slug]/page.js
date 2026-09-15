@@ -9,6 +9,7 @@ import VehicleBooking from '@/components/site/vehicle/VehicleBooking';
 import { Link } from '@/i18n/navigation';
 import { photosByVehicle, photosFor, uploadedAlt } from '@/components/site/vehiclePhotos';
 import { getSettings, getVehicleBySlug, listFaqs, listLocations, listVehiclePhotos, listVehicles, t as pick } from '@/lib/data';
+import { shortAnswerFor } from '@/lib/faq';
 import { formatMAD } from '@/lib/format';
 import { absoluteUrl, breadcrumbJsonLd, faqJsonLd, localizedMetadata, ogImageUrl, vehicleJsonLd } from '@/lib/seo';
 
@@ -267,7 +268,7 @@ export default async function VehiclePage({ params }) {
                   {shownFaqs.map((f) => (
                     <div key={f.id}>
                       <dt className="text-meta font-semibold text-text">{pick(f.question, locale)}</dt>
-                      <dd className="mt-2 text-text-2">{pick(f.shortAnswer, locale) || pick(f.longAnswer, locale) || pick(f.answer, locale)}</dd>
+                      <dd className="mt-2 text-text-2">{shortAnswerFor(f, locale)}</dd>
                     </div>
                   ))}
                 </dl>
@@ -313,7 +314,7 @@ export default async function VehiclePage({ params }) {
             { name, url },
           ]),
           /* FAQPage only for the questions actually on the page (plan 8.2). */
-          ...(shownFaqs.length ? [faqJsonLd(shownFaqs, locale)] : []),
+          ...(shownFaqs.length ? [faqJsonLd(shownFaqs, locale, shortAnswerFor)] : []),
         ]}
       />
     </div>

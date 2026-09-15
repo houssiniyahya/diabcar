@@ -76,6 +76,19 @@ describe('isAnswered', () => {
     assert.equal(isAnswered(null), false);
     assert.equal(isAnswered({}), false);
   });
+
+  /* The demo seed's rows carry only the legacy `answer` bag. Requiring a short
+     answer outright hid every one of them, so demo mode had no FAQ (rule 12). */
+  test('a demo row that answers only through the legacy answer bag is publishable', () => {
+    const demo = { question: { fr: 'Quel âge ?', en: 'What age?' }, answer: { fr: '21 ans.', en: '21.' } };
+    assert.equal(isAnswered(demo), true);
+    assert.equal(publishable([demo]).length, 1);
+  });
+
+  test('a legacy answer bag is still held to the placeholder rule', () => {
+    assert.equal(isAnswered({ question: { fr: 'Q ?' }, answer: { fr: 'TODO — réponse complète' } }), false);
+    assert.equal(isAnswered({ question: { fr: 'Q ?' }, shortAnswer: { fr: 'Oui.' }, answer: { es: 'TBD' } }), false);
+  });
 });
 
 describe('publishable', () => {

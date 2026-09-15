@@ -345,6 +345,36 @@ log across four page loads; build pass · lint at the 10-error baseline · 92/92
 messages (765 keys × 4) and css pass · 100/101 e2e with one known homepage flake.
 
 ---
+## FAQ — written for the Moroccan market, and a French leak (2026-09-15)
+
+« Analyse the Moroccan market and let the FAQ grow the site for SEO / GEO / AEO. »
+
+**Content.** `docs/inputs/faq.csv` now holds 31 questions from a Moroccan search-intent study (Casablanca prices, airport Mohammed V, MRE diaspora, driving in Morocco, deposit, documents, long term), each fact-checked in three passes against the verified fact sheet. **Not seeded** — the answers make legal and business claims, so the owner reviews them first.
+
+| state | count | what it holds |
+|---|---|---|
+| ready | 25 | question and short answer in FR/EN/AR/ES; long answer in French (EN/AR/ES show their own short answer) |
+| blocked | 6 | the question and `missing_fact` only — no answer text, so a publish click in the admin cannot put an unverified claim live |
+
+Blocked, with the fact each one needs: airport meeting point and fee (`aeroport-01`); a night pick-up at CMN — `settings.airport_service24h` is true while the verified hours end at 20:00 (`aeroport-02`); international permit rules (`Q012`); MRE temporary admission past 6 months (`MRE-01`); speed limits and child seats (`conduite-au-maroc-*`).
+
+Checked by hand after the passes: free cancellation 24 h, deposit release 7 days and the WhatsApp reply time are in `settings.json`; RC / ICE / capital are already public in the footer, the legal notice and the Organization JSON-LD; Morocco's accession to the 1968 Vienna Convention (29 Dec 1982) is in the UN treaty record.
+
+**Three bugs found on the way**
+
+| what | why it mattered |
+|---|---|
+| French answers on /en, /ar, /es | the long answers are French-only and the picker falls back to French, so the accordion and the FAQPage data both carried French text in three languages. `answerFor()` / `shortAnswerFor()` read the locale exactly; every renderer and `faqJsonLd` go through them. |
+| vehicle page FAQPage ≠ visible text | it lists the short answers but indexed the long ones (rule 8). |
+| demo mode had no FAQ at all | the placeholder guard required a short answer and the demo rows only carry `answer`, so every FAQ was filtered out (rule 12). |
+
+Also fixed: the seed's CSV reader split on every newline and would have cut the multi-paragraph answers apart (now RFC-4180, proven identical on the three existing CSVs), and the seed no longer fills a missing translation with French.
+
+**Verified:** build · lint clean on every touched file · 138/138 unit · messages, i18n, css, contrast pass · e2e home/claims/vehicle 20/20 on live data · in demo mode, 128 question/answer pairs on 20 pages across 4 languages: every FAQPage answer visible on its page, no French answer on en/ar/es, zero console errors. The live database has no published FAQ row today, which is why the demo run is the meaningful one.
+
+**Open for the owner:** approve the 25 answers, then `node scripts/seed.mjs --only=faqs`; supply the six missing facts; template rows Q001–Q004 and Q007–Q009, if they were ever seeded, stay in the database hidden by the guard — delete them from the admin.
+
+---
 ## Full verification of the booking pop-up (2026-09-09)
 
 « Run and verify no errors at all ». Everything was run, and a five-dimension

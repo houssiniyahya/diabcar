@@ -1,6 +1,7 @@
 import { getPathname } from '@/i18n/navigation';
 import { ogLocales, routing } from '@/i18n/routing';
 import { t } from '@/lib/constants';
+import { answerFor } from '@/lib/faq';
 /* Which Open Graph cards `npm run og` has pre-rendered. Static import, never
    an fs read — this module runs inside the Worker (CLAUDE.md rule 9). */
 import ogManifest from '../../public/og/manifest.json';
@@ -206,7 +207,7 @@ export function breadcrumbJsonLd(items) {
  * did not. `JsonLd` filters falsy values, so returning null here removes the
  * script entirely on all four pages that call this.
  */
-export function faqJsonLd(faqs, locale) {
+export function faqJsonLd(faqs, locale, answer = answerFor) {
   if (!Array.isArray(faqs) || faqs.length === 0) return null;
   return {
     '@context': 'https://schema.org',
@@ -215,7 +216,12 @@ export function faqJsonLd(faqs, locale) {
     mainEntity: faqs.map((f) => ({
       '@type': 'Question',
       name: t(f.question, locale),
-      acceptedAnswer: { '@type': 'Answer', text: t(f.answer, locale) },
+      /* `answer` must be the function the page DISPLAYS with, so the text
+         indexed is exactly the text a reader sees (rule 8). The default,
+         answerFor, is what FaqAccordion renders; the vehicle page lists short
+         answers and passes shortAnswerFor. The t(f.answer) this replaced fell
+         back to French and indexed French answers on the en/ar/es pages. */
+      acceptedAnswer: { '@type': 'Answer', text: answer(f, locale) },
     })),
   };
 }

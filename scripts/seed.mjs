@@ -72,30 +72,48 @@ const wants = (name) => ONLY.length === 0 || ONLY.includes(name);
 /* CSV                                                                 */
 /* ------------------------------------------------------------------ */
 
-/** Minimal RFC-4180 row splitter: handles the quoted fields in our inputs. */
-function splitRow(line) {
-  const out = [];
+/**
+ * RFC-4180 parser. A quoted field may hold commas, doubled quotes AND line
+ * breaks. The FAQ long answers run to several paragraphs; the reader this
+ * replaced split the file on every newline before looking at quotes, which
+ * would have cut each of those answers into broken rows.
+ */
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
   let cur = '';
   let quoted = false;
-  for (let i = 0; i < line.length; i += 1) {
-    const c = line[i];
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text[i];
     if (quoted) {
-      if (c === '"' && line[i + 1] === '"') { cur += '"'; i += 1; }
+      if (c === '"' && text[i + 1] === '"') { cur += '"'; i += 1; }
       else if (c === '"') quoted = false;
       else cur += c;
     } else if (c === '"') quoted = true;
-    else if (c === ',') { out.push(cur); cur = ''; }
-    else cur += c;
+    else if (c === ',') { row.push(cur); cur = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i += 1;
+      row.push(cur); rows.push(row); row = []; cur = '';
+    } else cur += c;
   }
-  out.push(cur);
-  return out;
+  row.push(cur);
+  rows.push(row);
+  return rows;
 }
 
 async function readCsv(file) {
-  const text = (await readFile(path.join(INPUTS, file), 'utf8')).replace(/^﻿/, '').trim();
-  const [head, ...rows] = text.split(/\r?\n/);
-  const cols = splitRow(head).map((c) => c.trim());
-  return rows.filter(Boolean).map((r) => Object.fromEntries(splitRow(r).map((v, i) => [cols[i], v.trim()])));
+  return csvRecords(await readFile(path.join(INPUTS, file), 'utf8'));
+}
+
+/* Split out from readCsv so the parsing can be checked without the disk.
+   Git on Windows may check a file out with CRLF, inside quoted fields too, so
+   line breaks inside a value are normalised to \n. */
+function csvRecords(raw) {
+  const [head, ...rows] = parseCsv(raw.replace(/^\uFEFF/, '').trim());
+  const cols = head.map((c) => c.trim());
+  return rows
+    .filter((r) => r.some((v) => v.trim() !== ''))
+    .map((r) => Object.fromEntries(r.map((v, i) => [cols[i], v.replace(/\r\n?/g, '\n').trim()])));
 }
 
 const TODO = (v) => !v || v.toUpperCase() === 'TODO';
@@ -103,6 +121,11 @@ const num = (v) => (TODO(v) ? null : Number(v));
 const int = (v, fallback = null) => (TODO(v) ? fallback : Number.parseInt(v, 10));
 const bool = (v) => (TODO(v) ? null : ['yes', 'true', '1'].includes(String(v).toLowerCase()));
 const i18n = (fr, en, ar, es) => ({ fr, en: en || fr, ar: ar || fr, es: es || fr });
+/* No French stand-in. For answers, a missing translation must stay MISSING so
+   the site can fall through to a genuinely translated short answer instead of
+   rendering French under an English heading (src/lib/faq.js answerFor). */
+const i18nStrict = (fr, en, ar, es) =>
+  Object.fromEntries(Object.entries({ fr, en, ar, es }).filter(([, v]) => typeof v === 'string' && v.trim() !== ''));
 
 /* ------------------------------------------------------------------ */
 /* settings.json — generated once from the committed seed              */
@@ -261,28 +284,46 @@ async function main() {
 
   /* ---- faqs ------------------------------------------------------ */
   if (wants('faqs')) {
+    /* The same placeholder rule the site applies at runtime (src/lib/faq.js).
+       The check this replaced was `!v || v.toUpperCase() === 'TODO'`, which only
+       caught the bare word. The template answers read "TODO -- reponse
+       complete", passed as answered, and one row was seeded PUBLISHED: it
+       rendered on seven public pages and inside the FAQPage structured data. */
+    const { isPlaceholder } = await import('../src/lib/faq.js');
     const rows = await readCsv('faq.csv');
-    const answered = rows.filter((r) => !TODO(r.short_answer_fr) || !TODO(r.long_answer_fr));
-    const faqs = rows.map((r, i) => ({
-      slug: r.id,
-      category: r.category || 'general',
-      citySlug: r.city_slug || null,
-      question: i18n(r.question_fr),
-      shortAnswer: TODO(r.short_answer_fr) ? {} : i18n(r.short_answer_fr),
-      longAnswer: TODO(r.long_answer_fr) ? {} : i18n(r.long_answer_fr),
-      answer: TODO(r.long_answer_fr) ? {} : i18n(r.long_answer_fr),
-      sort: (i + 1) * 10,
-      sortOrder: (i + 1) * 10,
-      /* An unanswered question must never reach the site (rule 11). */
-      isPublished: !TODO(r.short_answer_fr) && !TODO(r.long_answer_fr),
-      published: !TODO(r.short_answer_fr) && !TODO(r.long_answer_fr),
-    }));
-    await upsert('faqs', faqs, 'slug');
-    if (answered.length < rows.length) {
-      console.log(`  note: ${rows.length - answered.length}/${rows.length} FAQ rows are still TODO — seeded unpublished.`);
-    }
-  }
 
+    const faqs = rows.map((r, i) => {
+      /* A row the content pass marked blocked stays unpublished whatever its
+         cells hold: it is the owner's to-do, not an answer. */
+      const blocked = String(r.status || '').trim().toLowerCase() === 'blocked';
+      const shortReady = !isPlaceholder(r.short_answer_fr);
+      const longReady = !isPlaceholder(r.long_answer_fr);
+      /* Question, short answer AND long answer, as before. The long answer is
+         what the FAQPage structured data carries, so a row without one would
+         publish an empty acceptedAnswer. */
+      const publish = !blocked && !isPlaceholder(r.question_fr) && shortReady && longReady;
+      return {
+        slug: r.id,
+        category: r.category || 'general',
+        citySlug: r.city_slug || null,
+        /* All four languages when the CSV has them. i18n() falls back to French
+           for a missing one, so a French-only row still renders -- in French --
+           rather than as an empty string. Passing only the French column is why
+           French questions used to appear on the English and Arabic pages. */
+        question: i18n(r.question_fr, r.question_en, r.question_ar, r.question_es),
+        shortAnswer: shortReady ? i18nStrict(r.short_answer_fr, r.short_answer_en, r.short_answer_ar, r.short_answer_es) : {},
+        longAnswer: longReady ? i18nStrict(r.long_answer_fr, r.long_answer_en, r.long_answer_ar, r.long_answer_es) : {},
+        answer: longReady ? i18nStrict(r.long_answer_fr, r.long_answer_en, r.long_answer_ar, r.long_answer_es) : {},
+        sort: (i + 1) * 10,
+        sortOrder: (i + 1) * 10,
+        isPublished: publish,
+        published: publish,
+      };
+    });
+    await upsert('faqs', faqs, 'slug');
+    const unpublished = faqs.filter((f) => !f.published).length;
+    if (unpublished) console.log('  note: ' + unpublished + '/' + faqs.length + ' FAQ rows seeded unpublished (blocked, or not yet answered).');
+  }
   /* ---- reviews --------------------------------------------------- */
   /* Sample reviews are seeded flagged, and the site only renders them in demo
      mode. Real Google reviews are imported from the admin (plan 8.4). */
