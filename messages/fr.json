@@ -729,7 +729,8 @@
       }
     },
     "legalTitle": "Informations légales",
-    "legalText": "{legalName}, société à responsabilité limitée au capital de {capital}, immatriculée au registre du commerce de Casablanca sous le n° {rc}, ICE {ice}. Activité : location de voitures sans chauffeur."
+    "legalText": "{legalName}, société à responsabilité limitée au capital de {capital}, immatriculée au registre du commerce de Casablanca sous le n° {rc}, ICE {ice}. Activité : location de voitures sans chauffeur.",
+    "introNoYear": "Diab Car est une agence de location de voitures sans chauffeur à Casablanca. Installée boulevard Zerktouni, l’agence livre ses véhicules dans toute la ville et à l’aéroport Mohammed V."
   },
   "contact": {
     "title": "Contactez Diab Car",
@@ -896,8 +897,9 @@
       "title": "Demande de réservation envoyée | Diab Car"
     },
     "about": {
-      "title": "À propos de Diab Car — Agence de location à Casablanca depuis 2013",
-      "description": "Diab Car, agence de location de voitures sans chauffeur installée boulevard Zerktouni à Casablanca : flotte récente, prix tout inclus, caution transparente, service en 4 langues."
+      "title": "À propos de Diab Car — Agence de location à Casablanca",
+      "description": "Diab Car, agence de location de voitures sans chauffeur installée boulevard Zerktouni à Casablanca : flotte récente, prix tout inclus, caution transparente, service en 4 langues.",
+      "titleWithYear": "À propos de Diab Car — Agence de location à Casablanca depuis {year}"
     },
     "contact": {
       "title": "Contact — Diab Car Casablanca, Bd Zerktouni",

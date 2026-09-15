@@ -729,7 +729,8 @@
       }
     },
     "legalTitle": "Legal information",
-    "legalText": "{legalName}, a limited liability company with a capital of {capital}, registered with the Casablanca trade register under no. {rc}, ICE {ice}. Activity: self-drive car rental."
+    "legalText": "{legalName}, a limited liability company with a capital of {capital}, registered with the Casablanca trade register under no. {rc}, ICE {ice}. Activity: self-drive car rental.",
+    "introNoYear": "Diab Car is a self-drive car rental agency in Casablanca. Based on Boulevard Zerktouni, the agency delivers its vehicles across the city and at Mohammed V Airport."
   },
   "contact": {
     "title": "Contact Diab Car",
@@ -896,8 +897,9 @@
       "title": "Booking request sent | Diab Car"
     },
     "about": {
-      "title": "About Diab Car — Casablanca rental agency since 2013",
-      "description": "Diab Car, self-drive car rental agency on Boulevard Zerktouni in Casablanca: recent fleet, all-inclusive prices, transparent deposit, service in 4 languages."
+      "title": "About Diab Car — Casablanca rental agency",
+      "description": "Diab Car, self-drive car rental agency on Boulevard Zerktouni in Casablanca: recent fleet, all-inclusive prices, transparent deposit, service in 4 languages.",
+      "titleWithYear": "About Diab Car — Casablanca rental agency since {year}"
     },
     "contact": {
       "title": "Contact — Diab Car Casablanca, Bd Zerktouni",

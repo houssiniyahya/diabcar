@@ -729,7 +729,8 @@
       }
     },
     "legalTitle": "Información legal",
-    "legalText": "{legalName}, sociedad de responsabilidad limitada con un capital de {capital}, inscrita en el registro mercantil de Casablanca con el n.º {rc}, ICE {ice}. Actividad: alquiler de coches sin conductor."
+    "legalText": "{legalName}, sociedad de responsabilidad limitada con un capital de {capital}, inscrita en el registro mercantil de Casablanca con el n.º {rc}, ICE {ice}. Actividad: alquiler de coches sin conductor.",
+    "introNoYear": "Diab Car es una agencia de alquiler de coches sin conductor en Casablanca. Situada en el bulevar Zerktouni, la agencia entrega sus vehículos en toda la ciudad y en el aeropuerto Mohammed V."
   },
   "contact": {
     "title": "Contacta con Diab Car",
@@ -896,8 +897,9 @@
       "title": "Solicitud de reserva enviada | Diab Car"
     },
     "about": {
-      "title": "Sobre Diab Car — Agencia de alquiler en Casablanca desde 2013",
-      "description": "Diab Car, agencia de alquiler de coches sin conductor en el bulevar Zerktouni de Casablanca: flota reciente, precios todo incluido, fianza transparente, servicio en 4 idiomas."
+      "title": "Sobre Diab Car — Agencia de alquiler en Casablanca",
+      "description": "Diab Car, agencia de alquiler de coches sin conductor en el bulevar Zerktouni de Casablanca: flota reciente, precios todo incluido, fianza transparente, servicio en 4 idiomas.",
+      "titleWithYear": "Sobre Diab Car — Agencia de alquiler en Casablanca desde {year}"
     },
     "contact": {
       "title": "Contacto — Diab Car Casablanca, Bd Zerktouni",

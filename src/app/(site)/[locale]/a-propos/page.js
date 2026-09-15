@@ -13,7 +13,15 @@ export const revalidate = 3600;
 export async function generateMetadata({ params }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'seo.about' });
-  return localizedMetadata({ locale, href: '/a-propos', title: t('title'), description: t('description') });
+  /* The founding year is a CLAIM (rule 11). This title used to say "depuis 2013"
+     as fixed text in all four message files, putting an unverified year in the
+     <title> Google shows as the result headline, in the og/twitter titles, and
+     in the generated share image a WhatsApp or Facebook preview renders.
+     getSettings() reads public_settings, which returns founded_year only once
+     it is verified — so the year appears exactly then, and not before. */
+  const s = await getSettings();
+  const title = s.foundedYear ? t('titleWithYear', { year: s.foundedYear }) : t('title');
+  return localizedMetadata({ locale, href: '/a-propos', title, description: t('description') });
 }
 
 export default async function AboutPage({ params }) {
@@ -24,9 +32,14 @@ export default async function AboutPage({ params }) {
   const s = await getSettings();
   const url = absoluteUrl(locale, '/a-propos');
 
+  /* No `|| 2013`. The founding year is a CLAIM: public_settings returns it only
+     once verified_claims.foundedYear is true, and the demo adapter does the same.
+     A fallback here put the year straight back on the About page in all four
+     languages while the database said it was unverified (rule 11). No verified
+     year means the intro simply does not state one. */
   return (
     <>
-      <PageHero crumbs={[{ name: tn('home'), href: '/', url: absoluteUrl(locale, '/') }, { name: tn('about'), url }]} eyebrow={t('eyebrow')} title={t('title')} answer={t('intro', { year: s.foundedYear || 2013 })} image="coupe" />
+      <PageHero crumbs={[{ name: tn('home'), href: '/', url: absoluteUrl(locale, '/') }, { name: tn('about'), url }]} eyebrow={t('eyebrow')} title={t('title')} answer={s.foundedYear ? t('intro', { year: s.foundedYear }) : t('introNoYear')} image="coupe" />
 
       <section className="section-y bg-surface-1/60">
         <div className="container-x grid gap-10 lg:grid-cols-12">
@@ -70,7 +83,10 @@ export default async function AboutPage({ params }) {
       </section>
 
       <CtaBand settings={s} />
-      <JsonLd data={webPageJsonLd({ url, name: tseo('title'), description: tseo('description'), locale })} />
+      {/* Same rule as generateMetadata: the WebPage name a crawler reads carries the
+          founding year only once public_settings says it is verified, so the
+          <title> and this name can never disagree about it. */}
+      <JsonLd data={webPageJsonLd({ url, name: s.foundedYear ? tseo('titleWithYear', { year: s.foundedYear }) : tseo('title'), description: tseo('description'), locale })} />
     </>
   );
 }

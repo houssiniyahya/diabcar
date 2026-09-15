@@ -46,7 +46,7 @@ Sources so far: the owner (this build's prompts) and Diab Car's own public annou
 - Cancellation / modification policy: 
 - Confirmation SLA after an online booking (e.g. "within 30 min during opening hours"): 
 - Long-term rental: monthly prices by category or "on quote": monthly rental is offered (announcement: "تأجير يومي، أسبوعي وشهري"); prices: unknown → on quote
-- Chauffeur service offered? (yes/no): YES — "professional driver on request" (announcement, Sept 2026). Price: unknown.
+- Chauffeur service offered? (yes/no): NOT AS A SERVICE PAGE — the owner removed /avec-chauffeur on 2026-09-09 ("we have just delivery to the locations we set in options"). The Sept 2026 announcement mentioned a driver on request; if one is offered it is a booking OPTION, and its price is unknown. Do not publish it as a service, and do not write FAQ content about it until the owner confirms.
 
 ## Trust numbers (only with proof)
 - Google rating and number of reviews (today): 

@@ -4,6 +4,13 @@ import { cn } from '@/lib/cn';
 /**
  * Accessible accordion built on <details name="…"> (exclusive open, no JS).
  * Answers are in the HTML for crawlers and AI engines.
+ *
+ * KEEP IT FREE OF JAVASCRIPT. That is not a style choice: OpenAI's crawler
+ * does not execute JavaScript, and an answer that only exists after a script
+ * runs is invisible to it and to every other non-rendering AI crawler. The
+ * FAQ exists to be quoted by answer engines (plan 8.6). An "animated
+ * accordion" that mounts its panels from JS would quietly remove every answer
+ * from that audience. Animate the existing <details> with CSS if you must.
  */
 export default function FaqAccordion({ faqs = [], locale, name = 'faq', className, defaultOpen = 0 }) {
   return (

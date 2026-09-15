@@ -20,7 +20,11 @@ const CHECKS = [
   ['Avito Pro : boutique « location de voitures Casablanca » avec lien vers diabcar.ma', 'https://www.avito.ma/'],
   ['Facebook + Instagram : lien vers le site, adresse et horaires identiques', ''],
   ['Avis Google : lien de demande d’avis envoyé sur WhatsApp après chaque restitution (objectif 4,7★ / 150 avis)', ''],
-  ['Rich Results Test : AutoRental, Product/Car, FAQPage, BreadcrumbList validés', 'https://search.google.com/test/rich-results'],
+  /* FAQPage is deliberately absent: Google removed FAQ rich results from Search
+     on 7 May 2026 and dropped Rich Results Test support for them in June 2026,
+     so asking for it here set a check that can no longer pass. The FAQPage
+     markup itself is still valid schema.org and stays on the pages. */
+  ['Rich Results Test : AutoRental, Product/Car, BreadcrumbList validés', 'https://search.google.com/test/rich-results'],
   ['PageSpeed Insights : LCP < 2,5 s, INP < 200 ms, CLS < 0,1 sur mobile', 'https://pagespeed.web.dev/'],
   ['Photos réelles de la flotte + de l’agence (remplacer les illustrations)', ''],
 ];
