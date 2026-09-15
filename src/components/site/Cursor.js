@@ -99,7 +99,7 @@ export default function Cursor({ labels = {} }) {
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none fixed inset-0 z-[60] hidden lg:block"
+      className="pointer-events-none fixed inset-0 z-[80] hidden lg:block"
       data-testid="cursor-layer"
     >
       {/* `left`/`top`, NOT the logical `start` — on the OUTER point and on the

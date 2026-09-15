@@ -345,6 +345,51 @@ log across four page loads; build pass · lint at the 10-error baseline · 92/92
 messages (765 keys × 4) and css pass · 100/101 e2e with one known homepage flake.
 
 ---
+## The brand veil: first-visit intro and page transitions (2026-09-15)
+
+The owner asked for a premium automotive loading animation and page-to-page transition, with no redesign. One dark surface does both: DIAB CAR in the header's wordmark treatment, the red line, and RENT A CAR for the intro. The decision revises plan §1 (which had rejected an intro for LCP) and §5.3; both rows now say so.
+
+| part | what it does | built from |
+|---|---|---|
+| intro | once per tab: the word rises, the line draws from the centre, the tagline appears, then the veil sweeps off in the reading direction (≈1 s) | `BrandIntro.js`: a blocking gate script plus CSS only; no client component |
+| transition | a plain click to another page: the veil sweeps in with the mark, the route commits underneath, the veil sweeps out while the page fades in and rises 12 px | `RouteVeil.js`: a capture-phase listener; config and pure predicate in `src/lib/motion/brandVeil.js` |
+
+**What it never does:** hide the hero (the car stays at full opacity underneath and remains the LCP element) · take a pointer event during the intro · run under reduced motion · fire on query-only changes, hash jumps, back/forward, new-tab or modified clicks, external / tel / mailto / WhatsApp links, open dialogs or the theme sweep · run in the admin (it lives in the public layout only) · put a transform on `<main>` (it would re-anchor the fixed mobile bars) · leave anyone stuck (token-timed phases, a 2.5 s fail-safe, popstate and bfcache resets).
+
+**Adversarial review before commit** (4 reviewers, each serious finding attacked by a skeptic; 13 agents). Confirmed and fixed:
+
+| finding | fix |
+|---|---|
+| Back from a vehicle landed at the top of the results | the jump to the top now happens in a layout effect after Next writes the history entry |
+| a route arriving after the fail-safe kept the old scroll | same place, independent of the phase |
+| DIAB CAR flashed in Arial, then swapped width mid-intro | the gate script holds the mark until Archivo is ready; the veil itself never waits |
+| Enter on the focused link while the veil was closed started a second navigation | ignored, or replaces the one in flight |
+| the intro was retired on a timer from hydration (cut off in background tabs) | retired on the sweep's own `finished` promise, or at the first navigation |
+| the transition mark flickered on fast routes | the mark forms with the cover; measured: opacity 1 and the line fully drawn when the veil closes |
+| custom-cursor users had no pointer under the veil | cursor layer `z-[80]`, above the veil (`z-70`) |
+| the red line vanished in forced-colors mode | `CanvasText` |
+| the home hero read out of order on a first visit | the hero's fades and ignition start exactly as the veil lifts; inner-page fades (their LCP) never wait |
+
+Refuted: the intro replaying on a language switch.
+
+**Measured on the production build:**
+- Click → idle: 0.93–0.95 s on desktop, about 0.8 s from the mobile menu. The veil's own motion is 560 ms; the rest is the route loading under it. That is above the brief's 500–700 ms whenever the route takes longer than about 150 ms.
+- LCP, mobile throttling (CPU ×4, 1.6 Mbps, 150 ms RTT), 6 rotated runs per variant: intro 2310 ms median, no intro 3606 ms. Run-to-run spread on this machine is about ±1.5 s, so the honest reading is **no measurable cost**, not a gain. The hero car was the LCP element in every run, and CLS was 0.
+- A clean `npm run lh` on the real host is still owed.
+
+**Verified:**
+- build passes;
+- lint at the documented 9 errors + 1 warning, all in pre-existing files and proven present at HEAD;
+- 159/159 unit tests (21 new: click predicate, token reader, registry, gate script with its font and storage cases);
+- check:css, contrast, i18n and messages pass;
+- **full e2e 105 passed / 11 skipped (admin credentials) / 0 failed**, including 12 new veil tests;
+- a behaviour check run in demo mode and on production, covering desktop, mobile, reduced motion, Arabic, back/forward and reload: 0 problems, 0 console errors.
+
+**Open:**
+- One React hydration-attribute warning appeared once in dev mode and could not be reproduced in two identical replays or on production. Recorded, not dismissed.
+- The search form goes behind the veil; the language switcher deliberately does not.
+
+---
 ## FAQ — written for the Moroccan market, and a French leak (2026-09-15)
 
 « Analyse the Moroccan market and let the FAQ grow the site for SEO / GEO / AEO. »

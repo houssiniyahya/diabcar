@@ -267,6 +267,9 @@ export default function Header({ phone, whatsapp, transparent = false }) {
    * navigate. Reduced motion skips the wait entirely.
    */
   function onMobileNavigate(e, href, index) {
+    /* The brand veil took this click in the capture phase and navigates once
+       it has closed (RouteVeil.js); a second push from here would race it. */
+    if (e.defaultPrevented) return;
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button === 1) return;
     e.preventDefault();
     if (prefersReducedMotion()) {

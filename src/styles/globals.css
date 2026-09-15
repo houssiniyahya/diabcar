@@ -663,6 +663,224 @@ select { --chevron: var(--chevron-light); }
 }
 
 /* ================================================================== */
+/* The brand veil: first-visit intro and page transitions              */
+/* (owner request 2026-09-15; plan §1 and §5.3)                        */
+/*                                                                     */
+/* One surface, two uses.                                              */
+/*  - BrandIntro.js is CSS only. Its blocking script stamps             */
+/*    html[data-intro="play"] once per tab; the rules below key off it. */
+/*  - RouteVeil.js writes data-phase; the rules below do the rest.      */
+/*                                                                     */
+/* The rules it keeps (CLAUDE.md 3 and 6):                             */
+/*  - clip-path, transform and opacity only, every duration a token.    */
+/*  - The veil sits OVER the page and never hides it, so the hero car   */
+/*    is painted at full opacity at frame 0 and stays the LCP element.  */
+/*  - Reduced motion: the veil does not exist.                          */
+/*  - The sweep follows the reading direction in RTL.                   */
+/* ================================================================== */
+.brand-veil {
+  position: fixed;
+  inset-inline: 0;
+  top: 0;
+  /* The LARGE viewport, so a mobile toolbar collapsing mid-sweep never
+     uncovers a strip. The stage below centres the mark on the small one. */
+  height: 100vh;
+  height: 100lvh;
+  z-index: 70; /* above the menus (50) and the header (40); the custom cursor (80) stays above it */
+  background: var(--bg);
+  color: var(--text);
+  visibility: hidden;
+  pointer-events: none;
+}
+.brand-veil__stage {
+  display: grid;
+  place-items: center;
+  height: 100vh;
+  height: 100svh;
+}
+.brand-veil__lockup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.875rem;
+}
+/* The words come from data-text, so they are not page text (BrandLockup.js). */
+.brand-veil__word::before,
+.brand-veil__tag::before {
+  content: attr(data-text);
+}
+/* The header wordmark's treatment (Logo.js): Archivo 700, width 125, +0.02em. */
+.brand-veil__word {
+  font-family: var(--font-archivo);
+  font-weight: 700;
+  font-variation-settings: "wdth" 125;
+  font-size: clamp(1.75rem, 1.25rem + 2.2vw, 2.75rem);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+/* The red line, as in the hero: a signal, 2 px, far under 5% of the screen. */
+.brand-veil__rule {
+  display: block;
+  width: clamp(4.5rem, 10vw, 7rem);
+  height: 2px;
+  background: var(--red-signal);
+  transform-origin: center;
+}
+.brand-veil__tag {
+  font-family: var(--font-archivo);
+  font-weight: 600;
+  font-size: 0.6875rem;
+  line-height: 1;
+  letter-spacing: 0.34em;
+  /* Tracking adds space after the last letter too; give it back so the
+     tagline is optically centred under the line. The lockup is dir="ltr". */
+  margin-inline-end: -0.34em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+/* ---- The intro (once per tab) ------------------------------------ */
+/* ~1 s: word rises, line draws, tagline appears, a beat, then the veil
+   sweeps out across the page: --dur-panel + --dur-hover of mark, then a
+   --dur-panel sweep. */
+.brand-veil--intro {
+  --veil-hold: calc(var(--dur-panel) + var(--dur-hover));
+}
+html[data-intro="play"] .brand-veil--intro {
+  /* Visible as a static rule, not through the keyframes: animating visibility
+     alongside clip-path keeps the sweep off the compositor, and the end state
+     (inset ... 100%) already paints nothing. RouteVeil retires the attribute
+     once the intro has finished. */
+  visibility: visible;
+  animation: veil-sweep-out var(--dur-panel) var(--ease-inout) var(--veil-hold) both;
+}
+html[data-intro="play"][dir="rtl"] .brand-veil--intro {
+  animation-name: veil-sweep-out-rtl;
+}
+html[data-intro="play"] .brand-veil--intro .brand-veil__lockup {
+  animation: veil-mark-out var(--dur-hover) var(--ease-inout) var(--veil-hold) both;
+}
+html[data-intro="play"] .brand-veil--intro .brand-veil__word {
+  animation: veil-rise var(--dur-panel) var(--ease-out) both;
+}
+html[data-intro="play"] .brand-veil--intro .brand-veil__rule {
+  animation: veil-rule var(--dur-panel) var(--ease-inout) var(--dur-micro) both;
+}
+html[data-intro="play"] .brand-veil--intro .brand-veil__tag {
+  animation: veil-rise var(--dur-hover) var(--ease-out) var(--dur-hover) both;
+}
+/* The mark is set in Archivo at width 125. Until that face is ready the gate
+   script holds it back (data-intro-font="wait"), so a first visit never sees
+   DIAB CAR in the fallback face swap width mid-intro. The veil does not wait
+   for it: with a late font the curtain sweeps away on time, unmarked. The
+   stage carries this, not the lockup, whose own animation would override it. */
+.brand-veil--intro .brand-veil__stage {
+  transition: opacity var(--dur-micro) var(--ease-out);
+}
+html[data-intro-font="wait"] .brand-veil--intro .brand-veil__stage {
+  opacity: 0;
+}
+
+@keyframes veil-sweep-out {
+  from { clip-path: inset(0); }
+  to { clip-path: inset(0 0 0 100%); }
+}
+@keyframes veil-sweep-out-rtl {
+  from { clip-path: inset(0); }
+  to { clip-path: inset(0 100% 0 0); }
+}
+@keyframes veil-rise {
+  from { opacity: 0; transform: translate3d(0, 8px, 0); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes veil-rule {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes veil-mark-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translate3d(0, -6px, 0); }
+}
+
+/* The intro hands over to WOW 1. On a first visit the ignition starts exactly
+   as the veil begins to lift (the same --veil-hold), instead of playing unseen
+   underneath it. The car stays painted at full opacity, so LCP is untouched.
+   HeroTitle adds the offset to its inline stagger. RouteVeil retires the
+   attribute afterwards. */
+html[data-intro="play"] {
+  --veil-intro-offset: calc(var(--dur-panel) + var(--dur-hover));
+}
+/* The homepage hero's fades wait as well, so the hero still reads in its
+   designed order (eyebrow, headline, line, subtitle, module, trust) instead of
+   the small fades finishing under the veil first. Scoped to the homepage hero:
+   its LCP is the car, which never fades. PageHero's fades carry an inner
+   page's LCP and never wait. FadeIn adds this to its inline delay. */
+html[data-intro="play"] [data-testid="hero"] {
+  --hero-fade-offset: var(--veil-intro-offset);
+}
+html[data-intro="play"] :is(.ignite-line, .ignite-car, .hero-line) {
+  animation-delay: var(--veil-intro-offset);
+}
+html[data-intro="play"] .ignite-module {
+  animation-delay: calc(var(--veil-intro-offset) + var(--dur-micro));
+}
+
+/* ---- The page transition (RouteVeil.js) -------------------------- */
+/* idle: collapsed against the inline start, hidden, no transition (so
+   returning here from "reveal" snaps instead of sweeping backwards).
+   cover/covered: sweeps in to full and takes pointer events, so nothing
+   underneath is clicked twice. reveal: sweeps out through the inline end
+   and gives pointer events straight back. */
+.brand-veil--route {
+  clip-path: inset(0 100% 0 0);
+}
+[dir="rtl"] .brand-veil--route {
+  clip-path: inset(0 0 0 100%);
+}
+.brand-veil--route:is([data-phase="cover"], [data-phase="covered"]) {
+  visibility: visible;
+  pointer-events: auto;
+  clip-path: inset(0);
+  transition: clip-path var(--dur-hover) var(--ease-inout);
+}
+.brand-veil--route[data-phase="reveal"] {
+  visibility: visible;
+  clip-path: inset(0 0 0 100%);
+  transition: clip-path var(--dur-hover) var(--ease-inout);
+}
+[dir="rtl"] .brand-veil--route[data-phase="reveal"] {
+  clip-path: inset(0 100% 0 0);
+}
+/* The mark forms with the cover, so it is whole (and the line fully drawn)
+   the moment the veil closes, however fast the route; it fades as it lifts. */
+.brand-veil--route .brand-veil__lockup {
+  opacity: 0;
+  transition: opacity var(--dur-micro) var(--ease-out);
+}
+.brand-veil--route .brand-veil__rule {
+  transform: scaleX(0);
+  transition: transform var(--dur-hover) var(--ease-inout);
+}
+.brand-veil--route:is([data-phase="cover"], [data-phase="covered"]) .brand-veil__lockup {
+  opacity: 1;
+}
+.brand-veil--route:is([data-phase="cover"], [data-phase="covered"]) .brand-veil__rule {
+  transform: scaleX(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-veil { display: none !important; }
+}
+@media print {
+  .brand-veil { display: none !important; }
+}
+/* Windows High Contrast replaces backgrounds: keep the line as a system colour. */
+@media (forced-colors: active) {
+  .brand-veil__rule { background: CanvasText; }
+}
+
+/* ================================================================== */
 /* Editorial prose (blog, legal)                                       */
 /* ================================================================== */
 .prose-dc { color: var(--text-2); font-size: 1.0625rem; line-height: 1.75; }

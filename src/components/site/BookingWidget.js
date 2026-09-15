@@ -21,6 +21,7 @@ import Button from '@/components/ui/Button';
 import { localeTags } from '@/i18n/routing';
 import { addDays, formatMAD, todayISO, toISO } from '@/lib/format';
 import { cn } from '@/lib/cn';
+import { navigateBehindVeil } from '@/lib/motion/brandVeil';
 
 /* ------------------------------------------------------------------ */
 /* Constants                                                           */
@@ -759,8 +760,11 @@ export default function BookingWidget({ locations = [], compact = false, classNa
       onSearch(query);
       return;
     }
-    startTransition(() => {
-      router.push({ pathname: '/vehicules', query });
+    /* Behind the brand veil when it can play (RouteVeil.js), straight away otherwise. */
+    navigateBehindVeil(() => {
+      startTransition(() => {
+        router.push({ pathname: '/vehicules', query });
+      });
     });
   }
 

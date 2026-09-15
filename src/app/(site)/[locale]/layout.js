@@ -13,6 +13,8 @@ import Footer from '@/components/site/Footer';
 import WhatsAppFab from '@/components/site/WhatsAppFab';
 import Cursor from '@/components/site/Cursor';
 import CookieBanner from '@/components/site/CookieBanner';
+import BrandIntro from '@/components/site/BrandIntro';
+import RouteVeil from '@/components/site/RouteVeil';
 import JsonLd from '@/components/site/JsonLd';
 import { getSettings } from '@/lib/data';
 import { SITE_URL, businessJsonLd } from '@/lib/seo';
@@ -58,6 +60,8 @@ export default async function LocaleLayout({ children, params }) {
   return (
     <html lang={locale} dir={dir} className={fontClassNames} suppressHydrationWarning>
       <body className="flex min-h-dvh flex-col bg-bg text-text">
+        {/* First in <body>: its gate script must run before anything paints. */}
+        <BrandIntro />
         <ThemeProvider>
           <NextIntlClientProvider messages={pickMessages(messages)}>
             <MotionProvider>
@@ -77,6 +81,8 @@ export default async function LocaleLayout({ children, params }) {
                   labels={{ voir: tcur('voir'), explorer: tcur('explorer'), reserver: tcur('reserver'), drag: tcur('drag'), whatsapp: tcur('whatsapp') }}
                 />
                 <CookieBanner gaId={settings?.gaId || process.env.NEXT_PUBLIC_GA_ID} />
+                {/* The page transition. Outside <main>, never around it. */}
+                <RouteVeil />
               </CurrencyProvider>
             </MotionProvider>
           </NextIntlClientProvider>

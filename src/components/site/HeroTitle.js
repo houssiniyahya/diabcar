@@ -20,8 +20,9 @@ export default function HeroTitle({ lines = [], className, id }) {
       {lines.map((line, i) => (
         <span key={i} className="line-mask">
           {/* Only the 80 ms stagger is inline. The duration stays in globals.css
-              so `[data-ignition="seen"]` can shorten the whole ignition. */}
-          <span className="hero-line" style={i ? { animationDelay: `${i * 0.08}s` } : undefined}>
+              so `[data-ignition="seen"]` can shorten the whole ignition, and
+              the stagger rides on the brand intro's offset (0 when no intro). */}
+          <span className="hero-line" style={i ? { animationDelay: `calc(var(--veil-intro-offset, 0ms) + ${i * 80}ms)` } : undefined}>
             {line}
           </span>
         </span>
@@ -43,7 +44,7 @@ export default function HeroTitle({ lines = [], className, id }) {
  */
 export function FadeIn({ children, delay = 0, className, as: Tag = 'div' }) {
   return (
-    <Tag className={`eager-rise ${className || ''}`} style={{ animationDelay: `${delay}s` }}>
+    <Tag className={`eager-rise ${className || ''}`} style={{ animationDelay: `calc(var(--hero-fade-offset, 0ms) + ${delay}s)` }}>
       {children}
     </Tag>
   );
