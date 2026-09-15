@@ -443,6 +443,14 @@ The code stays portable: no host-specific APIs in app code; cron jobs are plain 
 > Sprint 6 adds GSAP and view transitions to. It also removes the Hobby plan's
 > non-commercial clause, which ruled option B out for a client's business site.
 >
+> **Implemented 2026-09-15:** `vercel.json` pins functions to `cdg1` and runs
+> four Vercel Cron jobs (expire-holds every minute, reminders every 5 minutes,
+> expire-reservations every 15, a keep-alive on `/api/health` every 6 hours);
+> `package.json` pins Node 24.x; a Vercel production build refuses to build
+> without the Supabase variables. The owner's setup steps (environment
+> variables and their scopes, domains, Supabase, DNS, checks after the first
+> deploy) are in `docs/DEPLOY-VERCEL.md`.
+>
 > What it costs: $20/month, so "everything free except the domain" is no longer
 > true and §13's cost line is updated accordingly. Supabase Free, Resend Free,
 > GA4, Cloudflare Web Analytics and UptimeRobot are unaffected — only the host

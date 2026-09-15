@@ -20,8 +20,8 @@ import { dataMode, expireUnconfirmedReservations, refreshCleaningBlocks } from '
  *
  * 0012 schedules both on pg_cron (hourly and every ten minutes) when the
  * extension is available; this route is the other half of that promise for a
- * project where it is not — point a Cloudflare Cron Trigger at it and the
- * sweeps happen either way. Running both is harmless: expiring an expired
+ * project where it is not — Vercel Cron calls it every 15 minutes
+ * (vercel.json), and the sweeps happen either way. Running both is harmless: expiring an expired
  * request is a no-op, and the block refresh only writes for units that have no
  * live cleaning block.
  *
@@ -35,10 +35,9 @@ function authorised(request) {
   const secret = process.env.CRON_SECRET;
   /* No secret configured = refuse, rather than silently run open. */
   if (!secret) return false;
-  const header = request.headers.get('authorization') || '';
-  const bearer = header.startsWith('Bearer ') ? header.slice(7) : null;
-  const query = new URL(request.url).searchParams.get('secret');
-  return bearer === secret || query === secret;
+  /* The header only. Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` by
+     itself; a ?secret= query string would be written into access logs. */
+  return (request.headers.get('authorization') || '') === `Bearer ${secret}`;
 }
 
 async function sweep(request) {

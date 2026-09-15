@@ -5,7 +5,7 @@
  *
  *   1. The token is verified SERVER-SIDE. A widget that only renders is
  *      decoration; the only thing that stops a scripted POST is this call.
- *   2. When no secret is configured the check is SKIPPED, not failed. Diab Car
+ *   2. When either key is missing the check is SKIPPED, not failed. Diab Car
  *      has not created the keys yet, and a funnel that refuses every booking
  *      in development — or on the day the key expires — is worse than one with
  *      no anti-spam. The skip is reported so it can be asserted and logged
@@ -28,8 +28,17 @@ export function turnstileConfigured() {
  * @returns {Promise<{ok: boolean, skipped?: boolean, codes?: string[]}>}
  */
 export async function verifyTurnstile(token, remoteIp) {
+  /* Both halves, not the secret alone. The widget only renders when the PUBLIC
+     site key was present at build time; with the secret set and the site key
+     missing (another environment scope, a typo), no token could ever be sent
+     and every booking would be refused. */
+  if (!turnstileConfigured()) {
+    if (process.env.NODE_ENV === 'production' && (process.env.TURNSTILE_SECRET_KEY || process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY)) {
+      console.warn('[turnstile] only one of the two keys is set: the anti-spam check is skipped until both are.');
+    }
+    return { ok: true, skipped: true };
+  }
   const secret = process.env.TURNSTILE_SECRET_KEY;
-  if (!secret) return { ok: true, skipped: true };
 
   if (!token) return { ok: false, codes: ['missing-input-response'] };
 

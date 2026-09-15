@@ -43,7 +43,7 @@ export default async function SeoPage() {
     ['robots.txt (moteurs IA autorisés)', `${SITE_URL}/robots.txt`],
     ['llms.txt (carte du site pour les assistants IA)', `${SITE_URL}/llms.txt`],
     ['Manifest PWA', `${SITE_URL}/manifest.webmanifest`],
-    ['Clé IndexNow', `${SITE_URL}/api/indexnow-key`],
+    ['Clé IndexNow', `${SITE_URL}/indexnow-key.txt`],
     ['Santé / keep-alive', `${SITE_URL}/api/health`],
   ];
   return (

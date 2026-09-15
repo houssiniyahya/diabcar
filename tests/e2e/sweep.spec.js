@@ -13,8 +13,11 @@
 const { test, expect } = require('@playwright/test');
 const db = require('./helpers/db');
 
-const OWNER_EMAIL = process.env.E2E_ADMIN_EMAIL || 'yahyahoussini366@gmail.com';
-const OWNER_PASSWORD = process.env.E2E_ADMIN_PASSWORD || '';
+/* The admin login comes from the environment only. This repository is public,
+   and the live owner account's e-mail is not something to publish. With either
+   variable missing the password is empty, so every admin test skips. */
+const OWNER_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
+const OWNER_PASSWORD = OWNER_EMAIL ? process.env.E2E_ADMIN_PASSWORD || '' : '';
 
 /** Noise that is not a bug: a lazily loaded asset the sandbox never had. */
 const IGNORED_CONSOLE = [/favicon/i, /the server responded with a status of 404/i, /ResizeObserver loop/i];

@@ -6,6 +6,8 @@ export async function GET() {
     const s = await getSettings();
     return Response.json({ ok: true, mode: dataMode(), business: s?.name || null, time: new Date().toISOString() });
   } catch (error) {
-    return Response.json({ ok: false, error: error.message }, { status: 500 });
+    /* A public endpoint: log the cause, never hand it out. */
+    console.error('[health]', error);
+    return Response.json({ ok: false }, { status: 500, headers: { 'Cache-Control': 'no-store' } });
   }
 }

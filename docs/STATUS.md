@@ -345,6 +345,58 @@ log across four page loads; build pass · lint at the 10-error baseline · 92/92
 messages (765 keys × 4) and css pass · 100/101 e2e with one known homepage flake.
 
 ---
+## Ready for Vercel Pro, and the holes a public deploy would expose (2026-09-15)
+
+« Prepare it to be hosted via Vercel. » The owner's decision in plan §9.1 (Vercel Pro, `cdg1`) is now configured. The setup steps are in **`docs/DEPLOY-VERCEL.md`**: rotating keys, making the repo private, env vars and their scopes, domains, Supabase, DNS, and checks after the first deploy.
+
+| added | what |
+|---|---|
+| `vercel.json` | functions in `cdg1`; crons: expire-holds every minute, reminders every 5 min (the pickup nudge covers 45 min; PROMPT 16-B's "daily" would never fire in time), expire-reservations every 15, `/api/health` keep-alive every 6 h |
+| `package.json` | `engines.node` 24.x |
+| `next.config.mjs` | a Vercel **production** build is refused without the Supabase variables, so the live site can never serve demo cars and prices; proven three ways (refused, with Supabase, local demo build) |
+
+**A readiness audit** (platform facts from the current Vercel docs, runtime, security/env, domains/SEO; 16 agents, each serious finding attacked by a skeptic) found and this commit fixes:
+
+| finding | fix |
+|---|---|
+| **the admin gate read `user_metadata.role`, which users write for themselves**: anyone who could sign up was an owner in the app | only the database claim and `app_metadata`; the owner guide turns sign-ups off |
+| the demo admin on a deployment missing Supabase: password printed on the login page, cookies signed with a default secret visible in this public repo | refused on production builds unless given a real secret and a non-default password; no password echoed |
+| the login's `next` was an open redirect | same-site paths only (`safeAdminNext`) |
+| `/admin/<x>.<y>` skipped the proxy's gate | matcher adds `/admin/:path*`; the blog editor guards itself |
+| booking e-mails logged customers' names, phones and e-mails when Resend was unset | production logs the reference only |
+| cron secret accepted as `?secret=` (it lands in logs) | Authorization header only, which is what Vercel sends |
+| Turnstile refused every booking with only one of its two keys | skips (with a warning) until both are set |
+| `/api/health` returned raw error text | generic |
+| IndexNow key under `/api/` (blocked by robots.txt, cannot authorise `/fr…`) | `/indexnow-key.txt` |
+| the owner's personal e-mail in four e2e specs of a public repo | read from `E2E_ADMIN_EMAIL` |
+
+Refuted by the skeptics:
+- builds failing when Supabase is paused (they should fail loudly);
+- the sitemap going stale;
+- a demo fallback on the production admin host once Supabase is set.
+
+**Not done, and why:** the reminders de-duplication is read-then-insert, and Vercel may deliver a cron twice. The fix needs a partial unique index, which means a migration, so it is left for a prompt that touches the database.
+
+**Verified:**
+- build passes;
+- lint clean on every changed file;
+- **170/170 unit tests** (11 new: demo admin, role claims, redirect, Turnstile);
+- **full e2e 105 passed / 11 skipped / 0 failed**;
+- against the production build:
+  - a cron called with `?secret=` → 401;
+  - `/api/health` → 200 in `supabase` mode;
+  - a dotted admin path → sent to login;
+  - the login page shows no password;
+  - robots allows `/indexnow-key.txt`;
+- live database left with 0 test rows.
+
+**For the owner before going live:**
+- **Rotate the Supabase keys shared in chat.**
+- **Make the GitHub repository private** (it is public).
+- In Supabase: sign-ups off, "Confirm email" on.
+- The GitHub history still contains the owner's e-mail in older commits. Making the repo private covers it; rewriting history would need a force-push and has not been done.
+
+---
 ## The brand veil: first-visit intro and page transitions (2026-09-15)
 
 The owner asked for a premium automotive loading animation and page-to-page transition, with no redesign. One dark surface does both: DIAB CAR in the header's wordmark treatment, the red line, and RENT A CAR for the intro. The decision revises plan §1 (which had rejected an intro for LCP) and §5.3; both rows now say so.
@@ -850,7 +902,7 @@ the reason, no PII.
 | App root — icon | `src/app/favicon.ico` | `/favicon.ico` | Legacy ICO favicon served at site root | **rebuild** | §10 Logo group (Rebuild); §11 Sprint 0 'logo assets (badge SVG, wordmark, favicon, OG)' | 0 | done | Regenerated from the real mark: 16/32/48 PNG-in-ICO. |
 | App root — icon | `src/app/icon.svg` | `/icon.svg` | Site icon SVG, current gold star mark | **rebuild** | §10 Logo row names src/app/icon.svg => Rebuild (badge SVG + wordmark) | 0 | done | Real mark, white on brand red, PNG inlined in SVG until vector artwork exists. |
 | App root — API | `src/app/api/health/route.js` | `/api/health` | Health endpoint reporting data mode and business name | **keep** | §10 silent; §9.2 6-hourly keep-alive ping, §9.6 free-limit observability | 6 | done | Keeps free Supabase project from pausing; wire to Cloudflare Cron |
-| App root — API | `src/app/api/indexnow-key/route.js` | `/api/indexnow-key` | Serves IndexNow key file for engine verification | **keep** | §10 'IndexNow … => Keep'; §8.6 'Bing Webmaster + IndexNow (exists)' | 5 | done | Reads key from settings or INDEXNOW_KEY env; 404 when unset |
+| App root — API | `src/app/api/indexnow-key/route.js` | `/api/indexnow-key` | Former IndexNow key location, kept but no longer referenced | **keep** | §10 'IndexNow … => Keep'; §8.6 'Bing Webmaster + IndexNow (exists)' | 5 | done | Superseded 2026-09-15 by `src/app/indexnow-key.txt/route.js` (`/indexnow-key.txt`): a key under /api/ is blocked by robots.txt and cannot authorise the /fr… pages it submits |
 | Admin route | `src/app/(admin)/admin/avis/page.js` | `/avis` | Customer reviews table with add and delete forms | **rebuild** | §10 "Rebuild IA to section 7"; §3 admin map moves it to /contenu/avis | 4 | todo | Route moves under /contenu; sample reviews removed from production (§10 schema row) |
 | Admin route | `src/app/(admin)/admin/contenu/blog/[id]/page.js` | `/contenu/blog/[id]` | Blog post editor route wrapping PostForm, delete action | **rebuild** | §10 "Rebuild IA to section 7"; §7.1 Contenu: blog | 4 | todo | Handles id=new; delete needs audit row with actor and reason |
 | Admin route | `src/app/(admin)/admin/contenu/blog/page.js` | `/contenu/blog` | Blog article list with new and edit links | **rebuild** | §10 "Rebuild IA to section 7"; §7.1 Contenu: blog | 4 | todo | Keep the list/edit pattern; add role gate and activity logging |

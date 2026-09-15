@@ -11,8 +11,11 @@
 const { test, expect } = require('@playwright/test');
 const db = require('./helpers/db');
 
-const OWNER_EMAIL = process.env.E2E_ADMIN_EMAIL || 'yahyahoussini366@gmail.com';
-const OWNER_PASSWORD = process.env.E2E_ADMIN_PASSWORD || '';
+/* The admin login comes from the environment only. This repository is public,
+   and the live owner account's e-mail is not something to publish. With either
+   variable missing the password is empty, so every admin test skips. */
+const OWNER_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
+const OWNER_PASSWORD = OWNER_EMAIL ? process.env.E2E_ADMIN_PASSWORD || '' : '';
 
 async function login(page) {
   await page.goto('/admin/login');

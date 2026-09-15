@@ -6,7 +6,29 @@
  */
 
 export const ADMIN_COOKIE = 'dc_admin';
+/* Development defaults. This repository is public, so both strings are known to
+   anyone: a production build must never accept a cookie signed with them. */
 const DEFAULT_SECRET = 'diabcar-dev-secret-change-me';
+const DEFAULT_PASSWORD = 'diabcar-demo';
+/* Placeholders, not secrets: the defaults above and .env.example's value. */
+const PLACEHOLDERS = new Set([DEFAULT_SECRET, DEFAULT_PASSWORD, 'change-me-in-production']);
+
+/**
+ * May the demo admin (no Supabase, one shared password, HMAC cookie) be used?
+ *
+ * Always in development. In a production build only when BOTH a real
+ * AUTH_SECRET (32+ characters, not a placeholder) and a non-default
+ * ADMIN_DEMO_PASSWORD are set. A deployment that was merely missing its
+ * Supabase variables (a preview, a mistyped production) otherwise fell into
+ * demo mode with the password printed on the login page and cookies signed
+ * with a secret anyone can read in this public repository.
+ */
+export function demoAdminEnabled() {
+  if (process.env.NODE_ENV !== 'production') return true;
+  const secret = process.env.AUTH_SECRET || '';
+  const password = process.env.ADMIN_DEMO_PASSWORD || '';
+  return secret.length >= 32 && !PLACEHOLDERS.has(secret) && password.length > 0 && !PLACEHOLDERS.has(password);
+}
 
 export function isSupabaseConfigured() {
   return Boolean(
@@ -49,6 +71,13 @@ export const PRICING_ROLES = ['owner', 'manager'];
  * `app_metadata.role === 'admin'`, and ADMIN_EMAILS is the break-glass list
  * for an account whose profile row has not been created yet. Both map to
  * `owner` because that is what "admin" meant before roles existed.
+ *
+ * NEVER `user_metadata`. A user writes their own user_metadata, at sign-up or
+ * with updateUser(), so reading a role there made anyone who could create an
+ * account an owner in this app. app_metadata is writable only with the service
+ * role, which is also the only place the database's auth_role() looks
+ * (supabase/migrations/0005). ADMIN_EMAILS relies on Supabase's e-mail
+ * confirmation, so keep "Confirm email" on (docs/DEPLOY-VERCEL.md).
  */
 export function roleFromClaims(claims) {
   if (!claims) return null;
@@ -56,7 +85,7 @@ export function roleFromClaims(claims) {
   const claimed = claims.user_role;
   if (ROLES.includes(claimed)) return claimed;
 
-  const legacy = claims.app_metadata?.role || claims.user_metadata?.role;
+  const legacy = claims.app_metadata?.role;
   if (legacy === 'admin') return 'owner';
 
   const email = (claims.email || '').toLowerCase();
@@ -105,6 +134,7 @@ async function sign(payload) {
 
 /** Demo mode: create a signed token valid for `days`. */
 export async function createDemoToken(email, days = 7) {
+  if (!demoAdminEnabled()) throw new Error('The demo admin is disabled on this deployment.');
   const payload = b64url(JSON.stringify({ email, exp: Date.now() + days * 86400 * 1000 }));
   const sig = await sign(payload);
   return `${payload}.${sig}`;
@@ -112,6 +142,7 @@ export async function createDemoToken(email, days = 7) {
 
 /** Demo mode: verify a token; returns { email } or null. */
 export async function verifyDemoToken(token) {
+  if (!demoAdminEnabled()) return null;
   if (!token || !token.includes('.')) return null;
   const [payload, sig] = token.split('.');
   const expected = await sign(payload);
@@ -128,6 +159,27 @@ export async function verifyDemoToken(token) {
   }
 }
 
+/** The demo admin password, or null where the demo admin is disabled (see demoAdminEnabled). */
 export function demoPassword() {
-  return process.env.ADMIN_DEMO_PASSWORD || 'diabcar-demo';
+  return demoAdminEnabled() ? process.env.ADMIN_DEMO_PASSWORD || DEFAULT_PASSWORD : null;
+}
+
+/**
+ * Where to send someone after the admin login: only a path on this same site.
+ * `next` arrives in the query string, so without this a crafted link
+ * (.../login?next=https://evil.example) would hand a member of staff to another
+ * site the moment they had really signed in.
+ *
+ * @param {unknown} raw the submitted `next`
+ * @param {string} [base] '' on the admin host, '/admin' on the path form
+ * @returns {string}
+ */
+export function safeAdminNext(raw, base = '') {
+  const fallback = `${base}/`;
+  const value = typeof raw === 'string' ? raw.trim() : '';
+  /* A single leading slash: not "//host" and not "/\host", which browsers also
+     read as another host. */
+  if (!value.startsWith('/') || value.startsWith('//') || value.startsWith('/\\')) return fallback;
+  for (const ch of value) if (ch.charCodeAt(0) < 32) return fallback;
+  return value;
 }

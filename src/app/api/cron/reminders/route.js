@@ -18,6 +18,9 @@ import { dataMode } from '@/lib/data';
  * no column for it and inventing one for a de-duplication detail would be
  * heavier than reading the link.
  *
+ * Vercel Cron calls it every 5 minutes (vercel.json): the pickup nudge covers
+ * the next 45 minutes, so a daily run would never fire one in time.
+ *
  * Protected by CRON_SECRET. `/api/*` is excluded from the proxy matcher, so no
  * middleware runs here and the route must guard itself.
  */
@@ -28,9 +31,9 @@ function authorised(request) {
   const secret = process.env.CRON_SECRET;
   /* No secret configured = refuse, rather than silently running open. */
   if (!secret) return false;
-  const header = request.headers.get('authorization') || '';
-  const bearer = header.startsWith('Bearer ') ? header.slice(7) : null;
-  return bearer === secret || new URL(request.url).searchParams.get('secret') === secret;
+  /* The header only. Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` by
+     itself; a ?secret= query string would be written into access logs. */
+  return (request.headers.get('authorization') || '') === `Bearer ${secret}`;
 }
 
 async function run(request) {

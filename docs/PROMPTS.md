@@ -362,7 +362,7 @@ Checkpoint: the site is live on the domain in 4 languages; admin on admin.diabca
 
 ### PROMPT 16-B — Alternative: deploy on Vercel Pro ($20/month)
 ```text
-Read CLAUDE.md and docs/MASTER-PLAN.md section 9. Deploy on Vercel Pro: functions region cdg1 (Paris), Vercel Cron for expire-holds (every minute), keep-alive (every 6 hours) and reminders (daily), environment variables per .env.example (I set them in the dashboard), domains diabcar.ma / www / admin.diabcar.ma on the same project, GitHub integration for preview deployments, `deploy.yml` not needed. Keep images unoptimized (pre-sized variants) to stay portable. Then the same verification list as Prompt 16 step 7.
+Read CLAUDE.md and docs/MASTER-PLAN.md section 9. Deploy on Vercel Pro: functions region cdg1 (Paris), Vercel Cron for expire-holds (every minute), expire-reservations (every 15 minutes), reminders (every 5 minutes: the pickup nudge covers the next 45 minutes, so daily would never fire in time) and a keep-alive on /api/health (every 6 hours), environment variables per .env.example (I set them in the dashboard), domains diabcar.ma / www / admin.diabcar.ma on the same project, GitHub integration for preview deployments, `deploy.yml` not needed. Keep images unoptimized (pre-sized variants) to stay portable. Then the same verification list as Prompt 16 step 7.
 ```
 
 ---

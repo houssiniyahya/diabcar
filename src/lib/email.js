@@ -37,8 +37,15 @@ export async function sendBookingEmails({ booking, vehicle, settings }) {
   const customer = booking.customerEmail ? buildCustomerEmail({ booking, name, q, settings, locale }) : null;
 
   if (!process.env.RESEND_API_KEY) {
-    /* Not silent: the whole point of the dev path is to see the content. */
-    console.info(`[email] RESEND_API_KEY not set — nothing sent. Would have delivered:\n` + `  → agency (${process.env.BOOKING_NOTIFY_EMAIL || settings?.email || 'unset'}): ${agency.subject}\n` + (customer ? `  → customer (${booking.customerEmail}): ${customer.subject}\n` : '') + `\n${agency.text}\n`);
+    if (process.env.NODE_ENV === 'production') {
+      /* A deployed build logs only THAT nothing was sent. The full message holds
+         the customer's name, phone and e-mail, and the host's logs are no place
+         for a client's personal data. */
+      console.warn(`[email] RESEND_API_KEY not set — booking e-mails not sent (reference ${booking.reference || booking.id || 'n/a'}).`);
+    } else {
+      /* Not silent: the whole point of the dev path is to see the content. */
+      console.info(`[email] RESEND_API_KEY not set — nothing sent. Would have delivered:\n` + `  → agency (${process.env.BOOKING_NOTIFY_EMAIL || settings?.email || 'unset'}): ${agency.subject}\n` + (customer ? `  → customer (${booking.customerEmail}): ${customer.subject}\n` : '') + `\n${agency.text}\n`);
+    }
     return { skipped: true, reason: 'no-api-key' };
   }
 

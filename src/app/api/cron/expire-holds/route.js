@@ -5,8 +5,8 @@ import { dataMode, db } from '@/lib/data';
  *
  * 0008 schedules `expire_holds()` on pg_cron every minute. pg_cron has to be
  * enabled per project though, and the migration only raises a notice if it is
- * not, so this route exists as the other half of that promise: point a
- * Cloudflare Cron Trigger at it every minute and the sweep happens either way
+ * not, so this route exists as the other half of that promise: Vercel Cron
+ * calls it every minute (vercel.json) and the sweep happens either way
  * (plan 6.3).
  *
  * Nothing breaks if BOTH run — expiring an expired hold is a no-op — and
@@ -23,10 +23,9 @@ function authorised(request) {
   const secret = process.env.CRON_SECRET;
   /* No secret configured = refuse, rather than silently run open. */
   if (!secret) return false;
-  const header = request.headers.get('authorization') || '';
-  const bearer = header.startsWith('Bearer ') ? header.slice(7) : null;
-  const query = new URL(request.url).searchParams.get('secret');
-  return bearer === secret || query === secret;
+  /* The header only. Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` by
+     itself; a ?secret= query string would be written into access logs. */
+  return (request.headers.get('authorization') || '') === `Bearer ${secret}`;
 }
 
 async function sweep(request) {

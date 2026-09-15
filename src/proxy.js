@@ -16,7 +16,7 @@ const FR = new Set(['MA', 'EH', 'DZ', 'TN', 'MR', 'FR', 'BE', 'CH', 'LU', 'MC', 
 const ES = new Set(['ES', 'MX', 'AR', 'CO', 'CL', 'PE', 'VE', 'EC', 'GT', 'CU', 'BO', 'DO', 'HN', 'PY', 'SV', 'NI', 'CR', 'PA', 'UY', 'GQ']);
 const MAGHREB = new Set(['DZ', 'TN']);
 const BOT =
-  /bot|crawl|spider|slurp|duckduck|yandex|baidu|applebot|oai-searchbot|chatgpt-user|gptbot|claudebot|claude-user|claude-searchbot|perplexity|meta-external|amazonbot|facebookexternalhit|whatsapp|telegrambot|lighthouse|pagespeed/i;
+  /bot|crawl|spider|slurp|duckduck|yandex|baidu|applebot|oai-searchbot|chatgpt-user|gptbot|claudebot|claude-user|claude-searchbot|perplexity|meta-external|amazonbot|facebookexternalhit|whatsapp|telegrambot|lighthouse|pagespeed|google-inspectiontool|googleother|storebot|vercel-screenshot|vercelbot/i;
 
 function localeFromGeo(request) {
   const country = (
@@ -151,5 +151,7 @@ export async function proxy(request) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next|_vercel|.*\\..*).*)'],
+  /* The second entry is not redundant: the first skips any path with a dot, and
+     /admin/<x>.<y> must still pass the admin gate above. */
+  matcher: ['/((?!api|_next|_vercel|.*\\..*).*)', '/admin/:path*'],
 };
