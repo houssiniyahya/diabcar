@@ -126,9 +126,16 @@ export default function AdminShell({ base, session, mode, siteUrl, children, log
     <AdminBaseContext.Provider value={base}>
       <div className="flex min-h-dvh bg-bg text-text">
         {/* ---------------------------------------------------- sidebar */}
+        {/* FIXED at every width, deliberately. The sidebar and the page must
+            never compete over the same CSS property: `lg:static` only beat
+            `fixed` while the generated stylesheet happened to list it later, and
+            when that order flipped (a stale hot-reloaded sheet is enough) the
+            whole admin slid underneath the nav. The content column is offset
+            with padding instead — see lg:ps-64 below — which cannot fail that
+            way, and the nav now stays put while long tables scroll. */}
         <aside
           className={cn(
-            'fixed inset-y-0 start-0 z-40 flex w-64 flex-col border-e border-border bg-surface-1 transition-transform lg:static lg:translate-x-0',
+            'fixed inset-y-0 start-0 z-40 flex w-64 flex-col border-e border-border bg-surface-1 transition-transform lg:translate-x-0',
             open ? 'translate-x-0' : '-translate-x-full rtl:translate-x-full',
           )}
         >
@@ -197,7 +204,9 @@ export default function AdminShell({ base, session, mode, siteUrl, children, log
         </aside>
 
         {/* ---------------------------------------------------- main */}
-        <div className="flex min-w-0 flex-1 flex-col">
+        {/* The padding is the sidebar's width (w-64): the only thing keeping the
+            content clear of the fixed nav from lg up. */}
+        <div className="flex min-w-0 flex-1 flex-col lg:ps-64">
           <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-bg/95 px-4 backdrop-blur-md lg:px-6">
             <button
               type="button"

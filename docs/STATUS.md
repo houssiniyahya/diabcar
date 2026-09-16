@@ -345,6 +345,24 @@ log across four page loads; build pass · lint at the 10-error baseline · 92/92
 messages (765 keys × 4) and css pass · 100/101 e2e with one known homepage flake.
 
 ---
+## Admin: the page slid underneath the sidebar (2026-09-16)
+
+Reported with a screenshot: on the dashboard the header, the greeting, the date line and the first stat card were all cut off behind the fixed nav.
+
+**Cause.** The sidebar switched position by breakpoint — `fixed` below `lg`, `lg:static` above it — so the content only cleared the nav while the generated stylesheet happened to list `lg:static` after `fixed`. Nothing in the code guarantees that order, and a stale hot-reloaded sheet is enough to flip it. Then the sidebar stays `fixed`, the content column starts at x=0, and the whole page sits under the nav. Measured on the dev server afterwards, the order was correct again, which is exactly what makes this kind of bug come and go.
+
+**Fix** (`src/components/admin/AdminShell.js`). The sidebar is now `fixed` at every width — one position, never a race — and the content column is offset with `lg:ps-64`, the sidebar's own width. Two different properties, so they cannot fight. The nav also stays put now while a long table scrolls.
+
+**Verified** on the running admin, logged in, at 1500 / 1280 / 1100 / 1024 / 1000 / 900 / 390 px:
+- from 1024 up: the header, the `h1` and the page content all start at exactly 256 px, the sidebar's right edge;
+- below 1024: the nav is tucked away, content uses the full width, the burger appears;
+- no sideways scrolling at any width;
+- on a phone: the burger opens the nav with its backdrop, tapping beside it closes it, and a nav link navigates and tucks it away;
+- lint clean, build passes.
+
+**Left alone:** the round "N" badge covering the bottom-left corner in the screenshot is the Next.js dev-tools indicator. It exists only in `npm run dev` and never on the deployed site.
+
+---
 ## Ready for Vercel Pro, and the holes a public deploy would expose (2026-09-15)
 
 « Prepare it to be hosted via Vercel. » The owner's decision in plan §9.1 (Vercel Pro, `cdg1`) is now configured. The setup steps are in **`docs/DEPLOY-VERCEL.md`**: rotating keys, making the repo private, env vars and their scopes, domains, Supabase, DNS, and checks after the first deploy.
