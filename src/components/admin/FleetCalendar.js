@@ -8,6 +8,7 @@ import { moveDates } from '@/lib/actions/reservations';
 import { placeRange, shiftIso, slotsFromDx, snapToSlot } from '@/lib/calendar';
 import { formatDateTime } from '@/lib/format';
 import { STATUS_LABEL } from '@/lib/reservation-states';
+import { blockRefusalMessage } from '@/lib/availability-timeline';
 
 /**
  * The fleet calendar (plan 7.3).
@@ -163,21 +164,30 @@ export default function FleetCalendar({ win, data, nowIso, base = '/admin' }) {
       router.refresh();
       return;
     }
-    setMessage(
-      result?.error === 'CONFLICT'
-        ? `⚠ CONFLIT — ${result.reference ? `${result.reference} occupe ` : 'une réservation occupe '}cette voiture sur cette période.`
-        : result?.error === 'BAD_DATES'
-          ? 'La fin du bloc doit être après son début.'
-          : 'Bloc refusé.',
-    );
+    /* create_block() (0014) names what is in the way; say it as a sentence. */
+    const plate = units.find((u) => u.id === draftBlock?.unitId)?.plate;
+    setMessage(`⚠ ${blockRefusalMessage(result, { plate })}`);
   };
 
-  const removeBlock = async (id) => {
+  /* Giving dates back to the site takes a reason, like cancelling a booking
+     (delete_block() in 0014, rule 5). */
+  const removeBlock = async (id, reason) => {
     setBusy(true);
-    await deleteBlockAction(id);
-    setBusy(false);
-    setSelected(null);
-    router.refresh();
+    let result;
+    try {
+      result = await deleteBlockAction({ id, reason });
+    } catch {
+      result = { ok: false, error: 'SERVER' };
+    } finally {
+      setBusy(false);
+    }
+    if (result?.ok) {
+      setSelected(null);
+      setMessage('Bloc supprimé : ces dates sont de nouveau à la vente.');
+      router.refresh();
+      return;
+    }
+    setMessage(`⚠ ${blockRefusalMessage(result)}`);
   };
 
   /* One unit = one row. Extracted so the same track serves a real unit and
@@ -402,15 +412,41 @@ function Details({ selected, reservations, blocks, units, base, onClose, onDelet
         <Row label="Au" value={<span className="tnum">{formatDateTime(b.endAt, 'fr')}</span>} />
         <Row label="Motif" value={b.reason || '—'} />
       </dl>
+      <DeleteBlockForm key={b.id} busy={busy} onDelete={(reason) => onDeleteBlock(b.id, reason)} />
+    </div>
+  );
+}
+
+/** A reason, then the delete: the dates go back on sale and the journal says why. */
+function DeleteBlockForm({ busy, onDelete }) {
+  const [reason, setReason] = useState('');
+  return (
+    <form
+      className="mt-5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (reason.trim()) onDelete(reason.trim());
+      }}
+    >
+      <label className="block">
+        <span className="mb-1 block text-xs text-text-muted">Pourquoi remettre ces dates en vente ?</span>
+        <input
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          required
+          maxLength={200}
+          data-testid="calendar-delete-block-reason"
+          className="w-full rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-text"
+        />
+      </label>
       <button
-        type="button"
-        disabled={busy}
-        onClick={() => onDeleteBlock(b.id)}
-        className="mt-5 rounded-lg border border-border-strong px-4 py-2 text-sm font-semibold text-text disabled:opacity-50"
+        type="submit"
+        disabled={busy || !reason.trim()}
+        className="mt-3 rounded-lg border border-border-strong px-4 py-2 text-sm font-semibold text-text disabled:opacity-50"
       >
         Supprimer le bloc
       </button>
-    </div>
+    </form>
   );
 }
 

@@ -4,6 +4,7 @@ import { formatDate, formatDateTime, formatMAD } from '@/lib/format';
 import { STATUS_LABEL, STATUS_TONE } from '@/lib/reservation-states';
 import { Card } from '@/components/admin/ui';
 import UnitEditor, { MarkReadyButton, UnitStatusChanger } from '@/components/admin/UnitEditor';
+import { BLOCK_KIND_LABEL as BLOCK_LABEL, UNIT_STATUS_LABEL } from '@/lib/fleet-labels';
 
 /**
  * The dossier of one physical car (plan 7.1, 6.2).
@@ -20,16 +21,10 @@ import UnitEditor, { MarkReadyButton, UnitStatusChanger } from '@/components/adm
  * that boundary.
  */
 
-export const UNIT_STATUS_LABEL = {
-  available: 'Disponible',
-  reserved: 'Réservée',
-  rented: 'En location',
-  returned: 'Rendue',
-  cleaning: 'Nettoyage',
-  maintenance: 'Entretien',
-  blocked: 'Bloquée',
-  out_of_service: 'Hors service',
-};
+/* The words live in src/lib/fleet-labels.js, shared with the model page and
+   the availability timeline; re-exported so the two pages keep importing them
+   from here. */
+export { UNIT_STATUS_LABEL };
 
 export const UNIT_STATUSES = Object.keys(UNIT_STATUS_LABEL);
 
@@ -83,14 +78,6 @@ const EVENT_LABEL = {
   NOTE: 'Note',
 };
 
-const BLOCK_LABEL = {
-  maintenance: 'Maintenance',
-  cleaning: 'Nettoyage',
-  transfer: 'Transfert',
-  private: 'Usage interne',
-  other: 'Autre',
-};
-
 const TABS = [
   { key: 'apercu', label: 'Aperçu' },
   { key: 'timeline', label: 'Timeline' },
@@ -136,7 +123,7 @@ export default async function UnitDossier({ dossier, tab = 'apercu', base = '/ad
       </nav>
 
       <div className="mt-6">
-        {current === 'apercu' ? <Apercu unit={unit} vehicles={vehicles} locations={locations} canEdit={canEdit} /> : null}
+        {current === 'apercu' ? <Apercu unit={unit} vehicles={vehicles} locations={locations} canEdit={canEdit} base={base} /> : null}
         {current === 'timeline' ? <Timeline events={events} evidence={evidence} base={base} /> : null}
         {current === 'reservations' ? <Reservations rows={reservations} base={base} /> : null}
         {current === 'blocs' ? <Blocs rows={blocks} now={now} /> : null}
@@ -148,7 +135,7 @@ export default async function UnitDossier({ dossier, tab = 'apercu', base = '/ad
 
 /* ------------------------------------------------------------------- aperçu */
 
-function Apercu({ unit, vehicles, locations, canEdit }) {
+function Apercu({ unit, vehicles, locations, canEdit, base = '/admin' }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
       <Card title="Fiche de l’unité">
@@ -166,6 +153,30 @@ function Apercu({ unit, vehicles, locations, canEdit }) {
           <div className="mt-4">
             <UnitStatusChanger unit={unit} statuses={UNIT_STATUS_OPTIONS} />
           </div>
+          {/* The status is what the car is TODAY. A period — « indisponible du
+              … au … », a booking taken by phone — is a block, drawn and created
+              on the model's availability timeline. Two different questions, so
+              the link is stated rather than the two being merged. */}
+          {canEdit ? (
+            <p className="mt-4 border-t border-border pt-4 text-xs text-text-muted">
+              Le statut décrit la voiture aujourd’hui. Pour la rendre indisponible sur des dates (du … au …), passez par la disponibilité du modèle
+              {unit.vehicleId ? (
+                <>
+                  {' : '}
+                  <Link href={`${base}/flotte/${unit.vehicleId}#disponibilite`} className="font-semibold text-text underline">
+                    ouvrir la disponibilité
+                  </Link>
+                </>
+              ) : null}
+              .
+            </p>
+          ) : (
+            /* Agents cannot open the model page nor write periods (0005,
+               0014): tell them who can, instead of a link that bounces. */
+            <p className="mt-4 border-t border-border pt-4 text-xs text-text-muted">
+              Le statut décrit la voiture aujourd’hui. Pour la rendre indisponible sur des dates, demandez au propriétaire ou au gérant, ou enregistrez une réservation.
+            </p>
+          )}
           {NEEDS_READY.includes(unit.status) ? (
             <div className="mt-4 border-t border-border pt-4">
               <p className="mb-3 text-sm text-text-2">Cette voiture est revenue mais n’est pas encore à la vente.</p>

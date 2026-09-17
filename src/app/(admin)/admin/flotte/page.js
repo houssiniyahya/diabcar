@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getAdminBase, requirePricingRole } from '@/lib/auth/server';
 import { listUnits, listVehiclePhotos, listVehicles } from '@/lib/data';
 import { CATEGORIES, vehicleImage } from '@/lib/constants';
+import { CATEGORY_LABEL as CAT } from '@/lib/fleet-labels';
 import { formatMAD } from '@/lib/format';
 import { AdminLink, PageTitle, Table } from '@/components/admin/ui';
 
@@ -20,7 +21,6 @@ export const dynamic = 'force-dynamic';
  * in Postgres if they type the URL (plan 7.2).
  */
 
-const CAT = { economy: 'Citadine', compact: 'Compacte', sedan: 'Berline', suv: 'SUV & 4x4', premium: 'Premium', luxury: 'Luxe', van: 'Van & minibus' };
 const STORAGE = `${process.env.NEXT_PUBLIC_SUPABASE_URL || ''}/storage/v1/object/public/vehicles`;
 
 export default async function FleetModelsPage({ searchParams }) {

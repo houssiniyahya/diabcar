@@ -29,7 +29,10 @@ export const getSettings = async () => (await db()).getSettings();
 export const getSettingsAdmin = async () => (await db()).getSettingsAdmin();
 export const listVehicles = async (f) => (await db()).listVehicles(f);
 export const getVehicleBySlug = async (slug) => (await db()).getVehicleBySlug(slug);
-export const getVehicleById = async (id) => (await db()).getVehicleById(id);
+/* The options travel through: `{ asStaff: true }` is what lets the admin open
+   a DRAFT model. Dropped here, the Supabase adapter read with the anonymous
+   client, RLS hid the unpublished row, and the model page answered 404. */
+export const getVehicleById = async (id, opts) => (await db()).getVehicleById(id, opts);
 export const listSeasons = async () => (await db()).listSeasons();
 export const listExtras = async () => (await db()).listExtras();
 export const listLocations = async () => (await db()).listLocations();
@@ -62,7 +65,7 @@ export const getBooking = async (id) => (await db()).getBooking(id);
    never branches on which one is live. */
 export const listUnits = async (f) => (await db()).listUnits(f);
 export const getUnit = async (id) => (await db()).getUnit(id);
-export const listCustomers = async () => (await db()).listCustomers();
+export const listCustomers = async (f) => (await db()).listCustomers(f);
 export const upsertCustomer = async (d) => (await db()).upsertCustomer(d);
 export const listReservations = async (f) => (await db()).listReservations(f);
 export const getReservation = async (id) => (await db()).getReservation(id);
@@ -70,7 +73,7 @@ export const createReservation = async (d) => (await db()).createReservation(d);
 export const updateReservation = async (id, p) => (await db()).updateReservation(id, p);
 export const listBlocks = async (f) => (await db()).listBlocks(f);
 export const createBlock = async (d) => (await db()).createBlock(d);
-export const deleteBlock = async (id) => (await db()).deleteBlock(id);
+export const deleteBlock = async (id, reason) => (await db()).deleteBlock(id, reason);
 export const listHolds = async (f) => (await db()).listHolds(f);
 export const createHold = async (d) => (await db()).createHold(d);
 export const releaseHold = async (id) => (await db()).releaseHold(id);

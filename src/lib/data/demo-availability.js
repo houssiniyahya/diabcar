@@ -66,13 +66,17 @@ export function freeUnits(store, vehicleId, startAt, endAt) {
 
   /* A unit both blocked and reserved must not be subtracted twice — the same
      `not exists` guard the SQL uses. */
+  /* Blocks are stored as given in Postgres (never widened), and only a
+     bookable unit's block is subtracted: `units` above never counted the
+     others (0014). */
   const blocked = new Set(
     store.blocks
       .filter((b) => {
         const u = store.units.find((x) => x.id === b.unitId);
         if (!u || u.vehicleId !== vehicleId) return false;
+        if (UNBOOKABLE_UNIT.includes(u.status)) return false;
         if (takenUnits.has(b.unitId)) return false;
-        return overlaps(ws, we, ...rowWindow(b, vehicle));
+        return overlaps(ws, we, ms(b.startAt), ms(b.endAt));
       })
       .map((b) => b.unitId),
   );
@@ -117,7 +121,8 @@ export function nextAvailable(store, vehicleId, from = new Date().toISOString())
   }
   for (const b of store.blocks) {
     const u = store.units.find((x) => x.id === b.unitId);
-    if (u?.vehicleId === vehicleId) ends.add(rowWindow(b, vehicle)[1] + buffer);
+    /* A block's period is stored as given (0008 probes upper(b.period) + buffer). */
+    if (u?.vehicleId === vehicleId) ends.add(ms(b.endAt) + buffer);
   }
 
   for (const end of [...ends].sort((a, b) => a - b)) {

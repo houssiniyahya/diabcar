@@ -14,6 +14,7 @@ import {
   moveReservation,
   overrideReservationPrice,
   setReservationStatus,
+  unitsFreeForReservation,
 } from '@/lib/data';
 import { LOCATION_KEY_PATTERN, resolvePickup } from '@/lib/locations';
 import { makeReference, quote } from '@/lib/pricing';
@@ -225,6 +226,39 @@ export async function createReservationByStaff(input) {
     return { ok: false, error: result?.error || 'SERVER' };
   }
 
+  /* A booking the agency itself took is a booking, not a request: confirm it
+     on the spot. Left `pending`, it would be swept by
+     expire_unconfirmed_reservations() after settings.auto_expire_hours — the
+     sweep cannot tell a web request nobody answered from a phone booking the
+     owner just typed — and the car would quietly go back on sale. A refusal
+     here (the database owns the state machine) leaves it pending, and the
+     reservation page still offers « Confirmer ». */
+  /* A car first, then the confirmation. With a plate, the booking is under
+     the per-unit exclusion constraint and the block trigger, so nothing can
+     later be scheduled onto that car by mistake (review 2026-09-17). No free
+     plate is not a failure: create_reservation() already proved the model has
+     room, and the booking then counts at model level like a web request. */
+  const id = result.reservation.id;
+  let unitAssigned = false;
+  try {
+    const free = await unitsFreeForReservation(id);
+    const unitId = free?.[0]?.unitId || null;
+    if (unitId) {
+      const assigned = await assignReservationUnit({ id, unitId, reason: `Attribuée à la prise (${d.source})` });
+      unitAssigned = Boolean(assigned?.ok);
+    }
+  } catch {
+    /* stays without a plate; the reservation page offers the choice */
+  }
+
+  let status = 'pending';
+  try {
+    const confirmed = await setReservationStatus({ id, status: 'confirmed', reason: `Prise par l’agence (${d.source})` });
+    if (confirmed?.ok) status = 'confirmed';
+  } catch {
+    /* stays pending; the form says so instead of redirecting */
+  }
+
   done();
-  return { ok: true, id: result.reservation.id, reference: result.reservation.reference, total: q.total };
+  return { ok: true, id, reference: result.reservation.reference, total: q.total, status, unitAssigned };
 }

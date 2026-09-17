@@ -134,6 +134,11 @@ async function cleanup() {
      for the next run, and the failure would look like a bug in the engine. */
   await fetch(`${URL_}/rest/v1/holds?session_token=like.e2e-*`, { method: 'DELETE', headers });
 
+  /* Unavailability periods a spec created, by the E2E- marker every spec puts
+     in the reason. A run killed between creating one and its own cleanup
+     would otherwise hide a real car from the website for days. */
+  await fetch(`${URL_}/rest/v1/blocks?reason=like.${encodeURIComponent('%E2E-%')}`, { method: 'DELETE', headers });
+
   /* Notifications whose reservation no longer exists. The booking action
      writes one per reservation, so deleting the reservations above leaves
      rows pointing at nothing — junk in the owner's admin bell whether a test

@@ -345,6 +345,35 @@ log across four page loads; build pass · lint at the 10-error baseline · 92/92
 messages (765 keys × 4) and css pass · 100/101 e2e with one known homepage flake.
 
 ---
+## The car page: photos first, and « indisponible du … au … » (2026-09-17)
+
+The owner's request: on a car's page see the photos **before** the name and the category under it; be able to set a car unavailable **from a date to a date** (a booking taken by phone, not from the website) and have the **website** show those dates as taken; a booking from the website blocks its dates by itself until it is cancelled.
+
+**What the page does now** (`/admin/flotte/<id>`): the photo strip, then the name with the category chip under it, then a six-week **availability timeline** — one row per plate, one bar per booking (whatever its source) or period, a row for bookings that have no plate yet, overlapping bars in their own lanes so none hides another. Click a bar to open it: a booking can be cancelled with a reason, a period deleted with a reason. Below, the « Rendre indisponible » form: reason, one plate or all of them, from/to (last day included), motif. Every plate is attempted and each answer reported ("A, C indisponibles… B : la réservation DC-9 occupe déjà cette voiture").
+
+**The dates are exact.** The public calendar asks the database about each day widened by the car's preparation buffer, so a period stored from midnight to midnight also greyed the day before and the day after. Each period is now stored pulled in by that buffer, and the days the owner types are the days the website hides — proven against the real engine: block 20–22, the site shows 0 free on 20, 21, 22 and both cars free on 19 and 23.
+
+**Migration `0014_safe_unavailability.sql` — NOT YET APPLIED** (the owner rotated the access token, as advised). Until it is pasted into the Supabase SQL editor the admin keeps working through a compatibility path (the old insert), and the page says so in the message. What 0014 adds:
+
+| fix | why it mattered |
+|---|---|
+| `create_block()` is the only write path: refuses a period on a booking of that car (**pending included**), on another period of that car, or one that would leave the model unable to honour the bookings still waiting for a plate — naming the booking | a phone booking could be written over a website request that was already holding the last car: two customers, one car, nothing said |
+| `delete_block()` requires a reason, written in the same transaction | giving dates back to the site was one click, unlogged — and an off-site booking's customer name lives only in that reason |
+| `free_units()` ignores a period on a car that is not bookable | a car at the garage with a « maintenance » period took a SECOND, working car off the site |
+| `mark_unit_ready()` closes only the period running now | « Marquer prête » deleted a transfer planned for next week, putting the car back on sale for days it would be away |
+
+**Also fixed** (from the same review): agency bookings are given a free plate before being confirmed, so the per-unit constraints protect them; the model page reads only its own window of bookings, periods and customers (an unfiltered read past the API row cap could have hidden a period that the site was enforcing); a prefilled link for a model that is not published no longer silently books another car; a failed action no longer leaves the buttons stuck; the cancel reason no longer carries from one booking to the next; day and month labels are formatted from the date string, so they stay right during Ramadan (Casablanca moves to UTC+0); the unit file only offers the availability link to roles that may use it.
+
+**Verified**
+- **26/26 checks of migration 0014 against real Postgres** (the migrations run in PGlite, a scratch-only harness): FORBIDDEN without a session and for an agent, every refusal by name, the journal entry with its reason and author, the exact-day greying, the capacity refusal naming the web request, the maintenance-car fix, « Marquer prête » keeping a future transfer, the cleaning safety net, and `create_reservation` answering SOLD_OUT for a blocked model.
+- **207/207 unit tests** (24 new: timeline windows and lanes, inclusive days, refusal sentences, the report after « Rendre indisponible », and the demo adapter's copy of every 0014 rule).
+- **3/3 new e2e** against the live database, fixtures cleaned: photos before the name; block all plates → the site shows those days taken and the neighbouring days free → delete each from its bar with a reason → the days come back; an agency booking is `confirmed` with a plate in the database, the site counts one car fewer, cancelling from its bar restores it; a prefill for a car that is not listed leaves the field empty.
+- Build, lint, contrast, css, i18n and messages pass.
+- A hydration warning seen while testing came from Playwright's screenshots (it writes an inline `caret-color` on inputs), not from the app.
+
+**For the owner:** apply `supabase/migrations/0014_safe_unavailability.sql` in the Supabase SQL editor. Nothing in it deletes data; it replaces four functions and adds two.
+
+---
 ## Admin: the page slid underneath the sidebar (2026-09-16)
 
 Reported with a screenshot: on the dashboard the header, the greeting, the date line and the first stat card were all cut off behind the fixed nav.

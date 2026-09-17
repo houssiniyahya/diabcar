@@ -22,6 +22,19 @@ function logDemoDamages(store, reservation, damages) {
 const rangesOverlap = (a, b) => new Date(a.startAt) < new Date(b.endAt) && new Date(b.startAt) < new Date(a.endAt);
 const now = () => new Date().toISOString();
 
+/* unit_is_bookable() in 0008. */
+const UNBOOKABLE_UNIT = ['maintenance', 'blocked', 'out_of_service'];
+const DAY_MS = 86400000;
+
+/** A reservation's period as Postgres stores it: widened by the prep buffer (0002). */
+function widenedPeriod(r, vehicle) {
+  const buffer = (Number(r.prepBufferMinutes ?? vehicle?.prepBufferMinutes) || 120) * 60000;
+  return { startAt: new Date(Date.parse(r.startAt) - buffer).toISOString(), endAt: new Date(Date.parse(r.endAt) + buffer).toISOString() };
+}
+const byStart = (a, b) => Date.parse(a.startAt) - Date.parse(b.startAt);
+/** Blocks are stored as given; live at `at`, half-open like '[)'. */
+const liveAt = (b, at = Date.now()) => Date.parse(b.startAt) <= at && at < Date.parse(b.endAt);
+
 /* The last nine digits, matching phone_key() in 0011. */
 const phoneKey = (phone) => String(phone || '').replace(/[^0-9]/g, '').slice(-9);
 const vehicleName = (store, id) => {
@@ -349,8 +362,9 @@ export const demoAdapter = {
     return clone(row);
   },
 
-  async listCustomers() {
-    return clone(getStore().customers);
+  async listCustomers({ ids } = {}) {
+    const rows = getStore().customers;
+    return clone(Array.isArray(ids) ? rows.filter((c) => ids.includes(c.id)) : rows);
   },
   async upsertCustomer(data) {
     const s = getStore();
@@ -364,10 +378,13 @@ export const demoAdapter = {
     return clone(row);
   },
 
-  async listReservations({ status, vehicleId, limit } = {}) {
+  async listReservations({ status, statuses, vehicleId, from, to, limit } = {}) {
     let rows = getStore().reservations;
     if (status) rows = rows.filter((r) => r.status === status);
+    if (Array.isArray(statuses) && statuses.length) rows = rows.filter((r) => statuses.includes(r.status));
     if (vehicleId) rows = rows.filter((r) => r.vehicleId === vehicleId);
+    if (from) rows = rows.filter((r) => Date.parse(r.endAt) > Date.parse(from));
+    if (to) rows = rows.filter((r) => Date.parse(r.startAt) < Date.parse(to));
     rows = [...rows].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     return clone(limit ? rows.slice(0, limit) : rows);
   },
@@ -404,33 +421,64 @@ export const demoAdapter = {
     return clone(s.reservations[i]);
   },
 
-  async listBlocks({ unitId } = {}) {
-    const rows = getStore().blocks;
-    return clone(unitId ? rows.filter((b) => b.unitId === unitId) : rows);
+  async listBlocks({ unitId, unitIds, from, to } = {}) {
+    let rows = getStore().blocks;
+    if (unitId) rows = rows.filter((b) => b.unitId === unitId);
+    if (Array.isArray(unitIds)) rows = rows.filter((b) => unitIds.includes(b.unitId));
+    if (from && to) rows = rows.filter((b) => rangesOverlap(b, { startAt: from, endAt: to }));
+    return clone([...rows].sort(byStart));
   },
+  /* Mirrors create_block() in 0014, refusal for refusal: the demo must not
+     accept a period the database would refuse (rule 12). */
   async createBlock(data) {
     const s = getStore();
-    /* Mirrors the Postgres trigger: a block may not land on a live reservation
-       for the same unit, and the error names the conflict (plan 6.3). */
-    const clash = s.reservations.find(
-      (r) => r.unitId === data.unitId
-        && ['confirmed', 'ready', 'active'].includes(r.status)
-        && !(new Date(r.endAt) <= new Date(data.startAt) || new Date(r.startAt) >= new Date(data.endAt)),
+    const reason = String(data.reason || '').trim();
+    if (!reason) return { ok: false, error: 'REASON_REQUIRED' };
+    const start = Date.parse(data.startAt);
+    const end = Date.parse(data.endAt);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return { ok: false, error: 'BAD_DATES' };
+    if (end <= Date.now()) return { ok: false, error: 'PAST' };
+    if (end - start > 366 * DAY_MS) return { ok: false, error: 'TOO_LONG' };
+
+    const unit = s.units.find((u) => u.id === data.unitId);
+    if (!unit) return { ok: false, error: 'NOT_FOUND' };
+    const vehicle = s.vehicles.find((v) => v.id === unit.vehicleId);
+    const range = { startAt: new Date(start).toISOString(), endAt: new Date(end).toISOString() };
+
+    const overlap = s.blocks.filter((b) => b.unitId === unit.id && rangesOverlap(b, range)).sort(byStart)[0];
+    if (overlap) return { ok: false, error: 'BLOCK_OVERLAP', kind: overlap.kind, from: overlap.startAt, to: overlap.endAt };
+
+    const live = s.reservations.filter(
+      (r) => r.vehicleId === unit.vehicleId && OCCUPYING_ST.includes(r.status) && rangesOverlap(widenedPeriod(r, vehicle), range),
     );
-    if (clash) {
-      const err = new Error('BLOCK_CONFLICTS_RESERVATION');
-      err.code = 'BLOCK_CONFLICTS_RESERVATION';
-      err.detail = { reservationReference: clash.reference, reservedFrom: clash.startAt, reservedTo: clash.endAt };
-      throw err;
+    const onUnit = live.filter((r) => r.unitId === unit.id).sort(byStart)[0];
+    if (onUnit) return { ok: false, error: 'CONFLICT', reference: onUnit.reference, status: onUnit.status, from: onUnit.startAt, to: onUnit.endAt };
+
+    if (!UNBOOKABLE_UNIT.includes(unit.status)) {
+      const bookable = new Set(s.units.filter((u) => u.vehicleId === unit.vehicleId && !UNBOOKABLE_UNIT.includes(u.status)).map((u) => u.id));
+      const taken = new Set(live.filter((r) => r.unitId).map((r) => r.unitId));
+      const blocked = new Set(s.blocks.filter((b) => bookable.has(b.unitId) && !taken.has(b.unitId) && rangesOverlap(b, range)).map((b) => b.unitId));
+      const waiting = live.filter((r) => !r.unitId).sort(byStart);
+      if (waiting.length > 0 && bookable.size - taken.size - blocked.size - 1 < waiting.length) {
+        const first = waiting[0];
+        return { ok: false, error: 'CAPACITY', reference: first.reference, status: first.status, source: first.source || 'web', from: first.startAt, to: first.endAt, waiting: waiting.length };
+      }
     }
-    const row = { id: `b-${Date.now()}`, kind: 'maintenance', createdAt: now(), ...data };
+
+    /* Not the millisecond alone: « toutes les unités » creates one block per
+       plate back to back, and two rows with the same id would be one row. */
+    const row = { id: `b-${Date.now()}-${s.blocks.length + 1}`, createdAt: now(), unitId: unit.id, kind: data.kind || 'maintenance', reason, ...range };
     s.blocks.push(row);
-    return clone(row);
+    return { ok: true, block: clone(row) };
   },
-  async deleteBlock(id) {
+  /* delete_block() in 0014: a reason, or nothing happens. */
+  async deleteBlock(id, reason) {
     const s = getStore();
-    s.blocks = s.blocks.filter((b) => b.id !== id);
-    return true;
+    if (!String(reason || '').trim()) return { ok: false, error: 'REASON_REQUIRED' };
+    const i = s.blocks.findIndex((b) => b.id === id);
+    if (i < 0) return { ok: false, error: 'NOT_FOUND' };
+    const [gone] = s.blocks.splice(i, 1);
+    return { ok: true, id, unitId: gone.unitId };
   },
 
   async listHolds({ vehicleId, live = true } = {}) {
@@ -1002,9 +1050,8 @@ export const demoAdapter = {
     u.status = 'available';
     u.updatedAt = now();
     const before = s.blocks.length;
-    s.blocks = s.blocks.filter(
-      (b) => !(b.unitId === unitId && ['cleaning', 'transfer'].includes(b.kind) && new Date(b.endAt) > new Date()),
-    );
+    /* Only the block running now (0014): a transfer planned for next week stays. */
+    s.blocks = s.blocks.filter((b) => !(b.unitId === unitId && ['cleaning', 'transfer'].includes(b.kind) && liveAt(b)));
     return { ok: true, from, blocksClosed: before - s.blocks.length };
   },
 
@@ -1058,8 +1105,11 @@ export const demoAdapter = {
     let refreshed = 0;
     for (const u of s.units) {
       if (u.status !== 'cleaning') continue;
-      const live = s.blocks.some((b) => b.unitId === u.id && b.kind === 'cleaning' && new Date(b.endAt) > new Date());
-      if (!live) {
+      const live = s.blocks.some((b) => b.unitId === u.id && b.kind === 'cleaning' && liveAt(b));
+      const window = { startAt: now(), endAt: new Date(Date.now() + minutes * 60000).toISOString() };
+      /* The exclusion constraint would refuse an overlap; the SQL skips that unit. */
+      const occupied = s.blocks.some((b) => b.unitId === u.id && rangesOverlap(b, window));
+      if (!live && !occupied) {
         s.blocks.push({
           id: newId('b'), unitId: u.id, kind: 'cleaning',
           startAt: now(), endAt: new Date(Date.now() + minutes * 60000).toISOString(),

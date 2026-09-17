@@ -6,6 +6,7 @@ import { saveVehicleModel } from '@/lib/actions/fleet';
 import { CAR_IMAGES, CATEGORIES, FEATURES, FUELS, TRANSMISSIONS } from '@/lib/constants';
 import { Checkbox, Field, Input, Select, Textarea } from '@/components/ui/Field';
 import { Card, SubmitButton } from '@/components/admin/ui';
+import { CATEGORY_LABEL as CAT } from '@/lib/fleet-labels';
 
 /**
  * The model sheet (plan 7.1).
@@ -22,7 +23,6 @@ import { Card, SubmitButton } from '@/components/admin/ui';
  * own script, never uppercased (rule 3).
  */
 
-const CAT = { economy: 'Citadine', compact: 'Compacte', sedan: 'Berline', suv: 'SUV & 4x4', premium: 'Premium', luxury: 'Luxe', van: 'Van & minibus' };
 const FUEL = { petrol: 'Essence', diesel: 'Diesel', hybrid: 'Hybride', electric: 'Électrique' };
 const FEAT = { ac: 'Climatisation', bluetooth: 'Bluetooth', apple_carplay: 'CarPlay / Android Auto', usb: 'USB', camera: 'Caméra de recul', cruise: 'Régulateur', led: 'Phares LED', parking_sensors: 'Capteurs de stationnement', isofix: 'ISOFIX', leather: 'Cuir', sunroof: 'Toit ouvrant', '4wd': 'Transmission intégrale', hybrid: 'Hybride', massage: 'Sièges massants', sport: 'Châssis sport', gps: 'GPS' };
 

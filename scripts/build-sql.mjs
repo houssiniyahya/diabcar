@@ -35,6 +35,11 @@ const FILES = [
   'supabase/migrations/0006_storage.sql',
   'supabase/migrations/0008_availability.sql',
   'supabase/migrations/0009_notifications.sql',
+  'supabase/migrations/0010_reservation_ops.sql',
+  'supabase/migrations/0011_customers.sql',
+  'supabase/migrations/0012_fleet_ops_content.sql',
+  'supabase/migrations/0013_vehicle_calendar.sql',
+  'supabase/migrations/0014_safe_unavailability.sql',
 ];
 
 const argv = process.argv.slice(2);

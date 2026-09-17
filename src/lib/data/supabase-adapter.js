@@ -68,6 +68,38 @@ function blockToModel(row) {
   return { ...rest, startAt: m ? isoFromPg(m[1]) : null, endAt: m ? isoFromPg(m[2]) : null };
 }
 
+/* PostgREST's answer when a function is not in its schema cache: a database
+   that has not had a migration applied yet. */
+function isMissingFunction(error) {
+  return error?.code === 'PGRST202' || /could not find the function/i.test(String(error?.message || ''));
+}
+
+/**
+ * The block insert as it was before migration 0014, kept ONLY for a database
+ * that has not had 0014 applied: the code can ship before the SQL without
+ * breaking the admin. It has the 0004 trigger and the exclusion constraint,
+ * not 0014's capacity check — the result says so (`legacy`), and the page
+ * warns the owner.
+ */
+async function legacyCreateBlock(sb, { unitId, startAt, endAt, kind, reason }) {
+  if (!String(reason || '').trim()) return { ok: false, error: 'REASON_REQUIRED' };
+  const { data: row, error } = await sb
+    .from('blocks')
+    .insert({ unit_id: unitId, kind: kind || 'maintenance', reason, period: rangeLiteral(startAt, endAt) })
+    .select()
+    .single();
+  if (error) {
+    const message = String(error.message || '');
+    if (message.includes('BLOCK_CONFLICTS_RESERVATION')) {
+      const reference = String(error.details || '').match(/DC-[0-9]{6}-[A-Z0-9]{4}/)?.[0] || null;
+      return { ok: false, error: 'CONFLICT', reference, legacy: true };
+    }
+    if (error.code === '23P01' || message.includes('blocks_no_overlap')) return { ok: false, error: 'BLOCK_OVERLAP', legacy: true };
+    fail(error);
+  }
+  return { ok: true, legacy: true, block: blockToModel(rowToModel(row)) };
+}
+
 /**
  * Call a write RPC and hand back the row it made.
  *
@@ -377,8 +409,16 @@ export const supabaseAdapter = {
     return rpcRow('save_unit', { p: data, p_reason: reason || null }, 'unit');
   },
 
-  async listCustomers() {
-    return selectAllAsStaff('customers', (q) => q.order('created_at', { ascending: false }));
+  /* `ids` narrows the read to the customers a page actually names — the model
+     page needs a handful of names, not the whole file (and not PostgREST's
+     row cap of it). */
+  async listCustomers({ ids } = {}) {
+    if (Array.isArray(ids) && ids.length === 0) return [];
+    return selectAllAsStaff('customers', (q) => {
+      let b = q.order('created_at', { ascending: false });
+      if (Array.isArray(ids)) b = b.in('id', ids);
+      return b;
+    });
   },
   async upsertCustomer(data) {
     const sb = await writeClient();
@@ -387,11 +427,16 @@ export const supabaseAdapter = {
     return rowToModel(row);
   },
 
-  async listReservations({ status, vehicleId, limit } = {}) {
+  /* `from`/`to` keep the rows whose dates touch that window (half-open), and
+     `statuses` a set of states — together, "what a timeline draws". */
+  async listReservations({ status, statuses, vehicleId, from, to, limit } = {}) {
     return selectAllAsStaff('reservations', (q) => {
       let b = q.order('created_at', { ascending: false });
       if (status) b = b.eq('status', status);
+      if (Array.isArray(statuses) && statuses.length) b = b.in('status', statuses);
       if (vehicleId) b = b.eq('vehicle_id', vehicleId);
+      if (from) b = b.gt('end_at', new Date(from).toISOString());
+      if (to) b = b.lt('start_at', new Date(to).toISOString());
       if (limit) b = b.limit(limit);
       return b;
     });
@@ -423,34 +468,57 @@ export const supabaseAdapter = {
      start_at/end_at, which do not exist on this table. Both directions are
      translated here so a block looks like every other dated row to callers
      — the demo adapter already speaks startAt/endAt (rule 12). */
-  async listBlocks({ unitId } = {}) {
-    const rows = await selectAllAsStaff('blocks', (q) => (unitId ? q.eq('unit_id', unitId) : q));
+  /* `unitIds` + `from`/`to` read only the periods a timeline can draw. The
+     blocks table only grows (every return writes a cleaning block), and an
+     unfiltered read past PostgREST's row cap drops arbitrary rows. */
+  async listBlocks({ unitId, unitIds, from, to } = {}) {
+    if (Array.isArray(unitIds) && unitIds.length === 0) return [];
+    const rows = await selectAllAsStaff('blocks', (q) => {
+      let b = q.order('period', { ascending: true });
+      if (unitId) b = b.eq('unit_id', unitId);
+      if (Array.isArray(unitIds)) b = b.in('unit_id', unitIds);
+      if (from && to) b = b.overlaps('period', rangeLiteral(from, to));
+      return b;
+    });
     return rows.map(blockToModel);
   },
-  async createBlock(data) {
+  /* Through create_block() (0014), never a plain insert: the function refuses
+     a period that would double-book the model, and names what is in the way.
+     Its refusals are outcomes ({ ok:false, error, … }), not exceptions. */
+  async createBlock({ unitId, startAt, endAt, kind, reason }) {
     const sb = await writeClient();
-    const { reason, startAt, endAt, ...rest } = data;
-    const { data: row, error } = await sb
-      .from('blocks')
-      .insert({ ...modelToRow({ ...rest, reason }), period: rangeLiteral(startAt, endAt) })
-      .select()
-      .single();
+    const { data, error } = await sb.rpc('create_block', {
+      p_unit: unitId,
+      p_start: new Date(startAt).toISOString(),
+      p_end: new Date(endAt).toISOString(),
+      p_kind: kind || 'maintenance',
+      p_reason: reason || null,
+    });
     if (error) {
-      /* The trigger raises BLOCK_CONFLICTS_RESERVATION with the conflicting
-         reservation in DETAIL, so the admin can say "Conflit : réservé 10–15
-         sept" instead of a generic failure. */
-      if (String(error.message).includes('BLOCK_CONFLICTS_RESERVATION')) {
-        const err = new Error('BLOCK_CONFLICTS_RESERVATION');
-        err.code = 'BLOCK_CONFLICTS_RESERVATION';
-        err.detail = error.details || error.hint || null;
-        throw err;
+      if (isMissingFunction(error)) return legacyCreateBlock(sb, { unitId, startAt, endAt, kind, reason });
+      fail(error);
+    }
+    if (!data?.ok) return data || { ok: false, error: 'SERVER' };
+    return {
+      ok: true,
+      block: { id: data.id, unitId: data.unitId, kind: data.kind, reason: data.reason, startAt: isoFromPg(data.startAt), endAt: isoFromPg(data.endAt) },
+    };
+  },
+  /* delete_block() (0014) takes the reason in the same transaction as the
+     delete, so the audit trail says why the dates went back on sale. */
+  async deleteBlock(id, reason) {
+    const sb = await writeClient();
+    const { data, error } = await sb.rpc('delete_block', { p_id: id, p_reason: reason || null });
+    if (error) {
+      if (isMissingFunction(error)) {
+        if (!String(reason || '').trim()) return { ok: false, error: 'REASON_REQUIRED' };
+        const { error: deleteError } = await sb.from('blocks').delete().eq('id', id);
+        if (deleteError) fail(deleteError);
+        return { ok: true, id, legacy: true };
       }
       fail(error);
     }
-    return blockToModel(rowToModel(row));
-  },
-  async deleteBlock(id) {
-    return remove('blocks', id);
+    return data;
   },
 
   async listHolds({ vehicleId, live = true } = {}) {

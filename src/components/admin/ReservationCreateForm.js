@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createReservationByStaff } from '@/lib/actions/reservations';
 import { t as pick } from '@/lib/constants';
@@ -27,14 +28,24 @@ const SOURCES = [
   { value: 'admin', label: 'Interne' },
 ];
 
-export default function ReservationCreateForm({ vehicles = [], locations = [], extras = [], base = '/admin' }) {
+/**
+ * @param {object} props
+ * @param {{ vehicle?: string, from?: string, to?: string }} [props.initial] A
+ *   car (slug) and dates to start from — the model page's "réservation hors
+ *   site" link arrives with them, so the agent only types the customer. A
+ *   slug that is not in `vehicles` (a draft model) is NOT replaced by another
+ *   car: the field stays empty and the form says why.
+ */
+export default function ReservationCreateForm({ vehicles = [], locations = [], extras = [], base = '/admin', initial = {} }) {
   const router = useRouter();
 
+  const day = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '');
+  const askedVehicleMissing = Boolean(initial.vehicle) && !vehicles.some((v) => v.slug === initial.vehicle);
   const [form, setForm] = useState(() => ({
-    vehicle: vehicles[0]?.slug || '',
-    from: '',
+    vehicle: initial.vehicle ? (askedVehicleMissing ? '' : initial.vehicle) : vehicles[0]?.slug || '',
+    from: day(initial.from),
     ft: '10:00',
-    to: '',
+    to: day(initial.to),
     tt: '10:00',
     pickup: locations[0]?.key || 'agency',
     dropoff: locations[0]?.key || 'agency',
@@ -106,8 +117,14 @@ export default function ReservationCreateForm({ vehicles = [], locations = [], e
     setBusy(true);
     try {
       const result = await createReservationByStaff({ ...form, extras: selectedExtras });
-      if (result?.ok) {
+      if (result?.ok && result.status === 'confirmed') {
         router.push(`${base}/reservations/${result.id}`);
+        return;
+      }
+      if (result?.ok) {
+        /* Created, but the confirmation was refused or failed: left pending,
+           it would be cancelled by the auto-expiry. Say so, do not redirect. */
+        setProblem({ kind: 'pending', id: result.id, reference: result.reference });
         return;
       }
       if (result?.error === 'SOLD_OUT') {
@@ -141,12 +158,18 @@ export default function ReservationCreateForm({ vehicles = [], locations = [], e
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Véhicule">
               <select name="vehicle" value={form.vehicle} onChange={(e) => set({ vehicle: e.target.value })} required className={INPUT}>
+                {form.vehicle === '' ? <option value="">— Choisir une voiture —</option> : null}
                 {vehicles.map((v) => (
                   <option key={v.slug} value={v.slug}>
                     {v.brand} {v.model}
                   </option>
                 ))}
               </select>
+              {askedVehicleMissing ? (
+                <span className="mt-1 block text-xs text-warning" data-testid="staff-vehicle-missing">
+                  Le modèle demandé n’est pas publié : choisissez la voiture vous-même.
+                </span>
+              ) : null}
             </Field>
             <Field label="Origine">
               <select name="source" value={form.source} onChange={(e) => set({ source: e.target.value })} className={INPUT}>
@@ -295,7 +318,7 @@ export default function ReservationCreateForm({ vehicles = [], locations = [], e
             </button>
           </div>
 
-          {problem ? <Problem problem={problem} /> : null}
+          {problem ? <Problem problem={problem} base={base} /> : null}
         </div>
       </aside>
     </form>
@@ -307,7 +330,18 @@ export default function ReservationCreateForm({ vehicles = [], locations = [], e
  * database telling the counter when this car frees up and which comparable
  * cars are free right now, so the customer is not simply turned away.
  */
-function Problem({ problem }) {
+function Problem({ problem, base }) {
+  if (problem.kind === 'pending') {
+    return (
+      <div className="mt-5 rounded-lg border border-warning bg-warning-soft p-3 text-sm text-text" role="alert" data-testid="staff-create-pending">
+        <p className="font-semibold">Réservation {problem.reference} créée, mais NON confirmée.</p>
+        <p className="mt-1 text-text-2">Confirmez-la maintenant depuis sa fiche : une demande non confirmée est annulée automatiquement après quelques heures.</p>
+        <Link href={`${base}/reservations/${problem.id}`} className="mt-2 inline-block font-semibold text-text underline">
+          Ouvrir {problem.reference}
+        </Link>
+      </div>
+    );
+  }
   if (problem.kind === 'text') {
     return (
       <p className="mt-5 rounded-lg border border-red-signal bg-red-soft/30 p-3 text-sm text-text" role="alert" data-testid="staff-create-error">
